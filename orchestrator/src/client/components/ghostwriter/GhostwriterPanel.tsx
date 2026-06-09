@@ -5,16 +5,17 @@ import type {
   JobChatImageAttachment,
   JobChatMessage,
   JobChatStreamEvent,
-  JobDocument,
   JobNote,
   PostApplicationJobEmailItem,
 } from "@shared/types";
+import { useQuery } from "@tanstack/react-query";
 import { Settings2 } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { showErrorToast } from "@/client/lib/error-toast";
+import { queryKeys } from "@/client/lib/queryKeys";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -48,15 +49,20 @@ export const GhostwriterPanel: React.FC<GhostwriterPanelProps> = ({
   const [branches, setBranches] = useState<BranchInfo[]>([]);
   const [notes, setNotes] = useState<JobNote[]>([]);
   const [emails, setEmails] = useState<PostApplicationJobEmailItem[]>([]);
-  const [documents, setDocuments] = useState<JobDocument[]>([]);
   const [selectedNoteIds, setSelectedNoteIds] = useState<string[]>([]);
   const [selectedEmailIds, setSelectedEmailIds] = useState<string[]>([]);
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [areNotesLoading, setAreNotesLoading] = useState(true);
   const [areEmailsLoading, setAreEmailsLoading] = useState(true);
-  const [areDocumentsLoading, setAreDocumentsLoading] = useState(true);
   const [isSavingContext, setIsSavingContext] = useState(false);
+
+  const documentsQuery = useQuery({
+    queryKey: queryKeys.jobs.documents(job.id),
+    queryFn: () => api.getJobDocuments(job.id),
+  });
+  const documents = documentsQuery.data ?? [];
+  const areDocumentsLoading = documentsQuery.isPending;
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(
     null,
@@ -117,33 +123,16 @@ export const GhostwriterPanel: React.FC<GhostwriterPanelProps> = ({
     }
   }, [job.id]);
 
-  const loadDocuments = useCallback(async () => {
-    setAreDocumentsLoading(true);
-    try {
-      const data = await api.getJobDocuments(job.id);
-      setDocuments(data);
-    } catch (error) {
-      showErrorToast(error, "Failed to load documents");
-    } finally {
-      setAreDocumentsLoading(false);
-    }
-  }, [job.id]);
-
   const load = useCallback(async () => {
     setIsLoading(true);
     try {
-      await Promise.all([
-        loadMessages(),
-        loadNotes(),
-        loadEmails(),
-        loadDocuments(),
-      ]);
+      await Promise.all([loadMessages(), loadNotes(), loadEmails()]);
     } catch (error) {
       showErrorToast(error, "Failed to load Ghostwriter");
     } finally {
       setIsLoading(false);
     }
-  }, [loadDocuments, loadEmails, loadMessages, loadNotes]);
+  }, [loadEmails, loadMessages, loadNotes]);
 
   useEffect(() => {
     void load();
@@ -162,12 +151,12 @@ export const GhostwriterPanel: React.FC<GhostwriterPanelProps> = ({
   }, [areNotesLoading, notes]);
 
   useEffect(() => {
-    if (areDocumentsLoading) return;
+    if (documentsQuery.isPending) return;
     const documentIds = new Set(documents.map((document) => document.id));
     setSelectedDocumentIds((current) =>
       current.filter((documentId) => documentIds.has(documentId)),
     );
-  }, [areDocumentsLoading, documents]);
+  }, [documentsQuery.isPending, documents]);
 
   const onStreamEvent = useCallback(
     (event: JobChatStreamEvent) => {

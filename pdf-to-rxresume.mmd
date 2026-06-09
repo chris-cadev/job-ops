@@ -1,0 +1,36 @@
+---
+references:
+  - "File: /pdf-to-rxresume.py"
+generationTime: 2026-06-08T16:39:08.174Z
+---
+flowchart TD
+    A(["Start"]) --> B["Parse command-line arguments"]
+    B --> C{{"File exists?"}}
+    C -->|No| D["Log error: File not found"]
+    D --> E(["Exit 1"])
+    C -->|Yes| F["Determine output path"]
+    F --> G["Extract text from PDF"]
+    G --> H{{"Extraction successful?"}}
+    H -->|No| I["Log error"]
+    I --> E
+    H -->|Yes| J["Send text to LLM API"]
+    J --> K{{"API call successful?"}}
+    K -->|No| L["Log HTTP/URL error"]
+    L --> E
+    K -->|Yes| M["Strip markdown fences from response"]
+    M --> N["Parse JSON from LLM response"]
+    N --> O{{"Valid JSON?"}}
+    O -->|No| P["Log JSON decode error"]
+    P --> E
+    O -->|Yes| Q["Validate resume schema"]
+    Q --> R{{"Schema valid?"}}
+    R -->|No| S["Log validation warnings"]
+    R -->|Yes| S
+    S --> T["Assign fresh UUIDs recursively"]
+    T --> U["Write JSON to output file"]
+    U --> V["Log success message"]
+    V --> W(["End"])
+    
+    style A fill:#90EE90
+    style E fill:#FFB6C6
+    style W fill:#90EE90

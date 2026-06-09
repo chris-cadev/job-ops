@@ -28,6 +28,9 @@ services:
       # Codex runtime home (stores auth and config)
       - CODEX_HOME=/app/codex-home
 
+      # Reactive Resume (self-hosted) - points to the rxresume-app service on the Docker network
+      - RXRESUME_URL=http://rxresume-app:3000
+
     env_file:
       - path: ./.env
         required: false
@@ -93,6 +96,42 @@ services:
       retries: 3
       start_period: 10s
 
+  # ---------------------------------------------------------------------------
+  # Reactive Resume v5 - PostgreSQL Database
+  # ---------------------------------------------------------------------------
+  rxresume-db:
+    image: postgres:16-alpine
+    container_name: reactive-resume-db
+    env_file:
+      - path: ./.env.rxresume
+        required: true
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rxresume} -d ${POSTGRES_DB:-rxresume}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Reactive Resume v5 - Application Server
+  # ---------------------------------------------------------------------------
+  rxresume-app:
+    image: amruthpillai/reactive-resume:v5
+    container_name: reactive-resume-app
+    ports:
+      - "3000:3000"
+    depends_on:
+      rxresume-db:
+        condition: service_healthy
+    env_file:
+      - path: ./.env.rxresume
+        required: true
+    volumes:
+      - ./data/rxresume-uploads:/app/apps/server/uploads
+    restart: unless-stopped
+
 secrets:
   github_token:
     environment: GITHUB_TOKEN
@@ -101,3 +140,4 @@ secrets:
 volumes:
   data:
   codex-home:
+  pgdata:
