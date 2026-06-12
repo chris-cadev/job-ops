@@ -66,30 +66,30 @@ describe("AI Service Resilience", () => {
       expect(result.reason).toBe("Great match");
     });
 
-    it("should throw LlmNotConfiguredError if API Key is missing", async () => {
+    it("should return null score if API Key is missing", async () => {
       delete process.env.OPENROUTER_API_KEY;
       vi.mocked(settingsRepo.getAllSettings).mockResolvedValue({});
 
       // Should NOT call fetch
-      await expect(scoreJobSuitability(mockJob, mockProfile)).rejects.toThrow(
-        "LLM API key not configured",
-      );
+      const result = await scoreJobSuitability(mockJob, mockProfile);
+      expect(result.score).toBeNull();
+      expect(result.reason).toContain("Scoring failed");
       expect(global.fetch).not.toHaveBeenCalled();
     });
 
-    it("should throw LlmNotConfiguredError on API 500/400 errors", async () => {
+    it("should return null score on API 500/400 errors", async () => {
       vi.mocked(global.fetch).mockResolvedValue({
         ok: false,
         status: 500,
         statusText: "Internal Server Error",
       } as any);
 
-      await expect(scoreJobSuitability(mockJob, mockProfile)).rejects.toThrow(
-        "AI scoring failed",
-      );
+      const result = await scoreJobSuitability(mockJob, mockProfile);
+      expect(result.score).toBeNull();
+      expect(result.reason).toContain("Scoring failed");
     });
 
-    it("should throw LlmNotConfiguredError on Malformed/Invalid JSON in API response", async () => {
+    it("should return null score on Malformed/Invalid JSON in API response", async () => {
       const mockResponse = {
         ok: true,
         json: async () => ({
@@ -100,9 +100,9 @@ describe("AI Service Resilience", () => {
       };
       vi.mocked(global.fetch).mockResolvedValue(mockResponse as any);
 
-      await expect(scoreJobSuitability(mockJob, mockProfile)).rejects.toThrow(
-        "AI scoring failed",
-      );
+      const result = await scoreJobSuitability(mockJob, mockProfile);
+      expect(result.score).toBeNull();
+      expect(result.reason).toContain("Scoring failed");
     });
 
     it("should extract JSON from markdown code blocks", async () => {

@@ -1,0 +1,8 @@
+[tools]
+node = "22"
+
+[env]
+NODE_ENV = "development"
+
+[tasks]
+test = "npm --workspace orchestrator run test:run"

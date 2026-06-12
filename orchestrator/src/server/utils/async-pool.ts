@@ -13,8 +13,21 @@ export async function asyncPool<TItem, TResult>(args: {
     index: number,
     outcome: AsyncPoolTaskStatus<TResult>,
   ) => void;
+  /**
+   * When true, do not bail on the first task error.
+   * All items will be attempted; errors are collected but not thrown.
+   * Failed results are omitted from the returned array.
+   */
+  collectErrors?: boolean;
 }): Promise<TResult[]> {
-  const { items, task, shouldStop, onTaskStarted, onTaskSettled } = args;
+  const {
+    items,
+    task,
+    shouldStop,
+    onTaskStarted,
+    onTaskSettled,
+    collectErrors = false,
+  } = args;
   const rawConcurrency = Number.isFinite(args.concurrency)
     ? args.concurrency
     : 1;
@@ -54,7 +67,7 @@ export async function asyncPool<TItem, TResult>(args: {
 
   const worker = async (): Promise<void> => {
     while (true) {
-      if (shouldStop?.() || firstError !== null) return;
+      if (shouldStop?.() || (firstError !== null && !collectErrors)) return;
 
       const currentIndex = nextIndex;
       nextIndex += 1;
@@ -73,6 +86,10 @@ export async function asyncPool<TItem, TResult>(args: {
           status: "rejected",
           error,
         });
+        if (collectErrors) {
+          // Continue processing remaining items
+          continue;
+        }
         if (firstError === null) firstError = error;
         return;
       }
@@ -81,7 +98,7 @@ export async function asyncPool<TItem, TResult>(args: {
 
   const workerCount = Math.min(safeConcurrency, items.length);
   await Promise.all(Array.from({ length: workerCount }, () => worker()));
-  if (firstError !== null) throw firstError;
+  if (firstError !== null && !collectErrors) throw firstError;
 
   return results.filter((value): value is TResult => value !== UNSET);
 }

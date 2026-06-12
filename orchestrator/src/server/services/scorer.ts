@@ -121,25 +121,21 @@ export async function scoreJobSuitability(
   });
 
   if (!result.success) {
-    logger.warn("Scoring failed — pausing pipeline", {
+    logger.warn("Scoring failed for job", {
       jobId: job.id,
       error: result.error,
     });
-    throw new LlmNotConfiguredError(
-      `AI scoring failed: ${result.error}. Check your LLM configuration in Settings → Integrations, then resume scoring.`,
-    );
+    return { score: null, reason: `Scoring failed: ${result.error}` };
   }
 
   const { score, reason } = result.data;
 
   // Validate we got a reasonable response
   if (typeof score !== "number" || Number.isNaN(score)) {
-    logger.warn("Invalid score in AI response — pausing pipeline", {
+    logger.warn("Invalid score in AI response for job", {
       jobId: job.id,
     });
-    throw new LlmNotConfiguredError(
-      "AI returned invalid scoring data. Check your LLM configuration in Settings → Integrations, then resume scoring.",
-    );
+    return { score: null, reason: "AI returned invalid scoring data" };
   }
 
   const clampedScore = Math.min(100, Math.max(0, Math.round(score)));

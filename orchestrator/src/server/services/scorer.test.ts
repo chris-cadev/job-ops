@@ -854,11 +854,9 @@ describe("salary penalty", () => {
     });
   });
 
-  describe("LlmNotConfiguredError", () => {
-    it("should throw LlmNotConfiguredError when API key is not configured", async () => {
-      const { scoreJobSuitability, LlmNotConfiguredError } = await import(
-        "./scorer"
-      );
+  describe("scoring failure handling", () => {
+    it("should return null score when API key is not configured", async () => {
+      const { scoreJobSuitability } = await import("./scorer");
       getEffectiveSettingsMock.mockResolvedValue({
         penalizeMissingSalary: { value: false, default: false, override: null },
         missingSalaryPenalty: { value: 10, default: 10, override: null },
@@ -876,15 +874,13 @@ describe("salary penalty", () => {
         title: "Software Engineer",
       });
 
-      await expect(scoreJobSuitability(job, {})).rejects.toThrow(
-        LlmNotConfiguredError,
-      );
+      const result = await scoreJobSuitability(job, {});
+      expect(result.score).toBeNull();
+      expect(result.reason).toContain("Scoring failed");
     });
 
-    it("should throw LlmNotConfiguredError for non-API-key errors", async () => {
-      const { scoreJobSuitability, LlmNotConfiguredError } = await import(
-        "./scorer"
-      );
+    it("should return null score for non-API-key errors", async () => {
+      const { scoreJobSuitability } = await import("./scorer");
       getEffectiveSettingsMock.mockResolvedValue({
         penalizeMissingSalary: { value: false, default: false, override: null },
         missingSalaryPenalty: { value: 10, default: 10, override: null },
@@ -901,9 +897,9 @@ describe("salary penalty", () => {
         title: "Software Engineer",
       });
 
-      await expect(scoreJobSuitability(job, {})).rejects.toThrow(
-        LlmNotConfiguredError,
-      );
+      const result = await scoreJobSuitability(job, {});
+      expect(result.score).toBeNull();
+      expect(result.reason).toContain("Scoring failed");
     });
   });
 });

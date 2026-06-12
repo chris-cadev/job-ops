@@ -8,6 +8,7 @@ export function shouldRetryAttempt(args: {
     (args.status !== undefined && args.status >= 500 && args.status <= 599) ||
     args.message.toLowerCase().includes("timeout") ||
     args.message.toLowerCase().includes("timed out") ||
+    args.message.toLowerCase().includes("aborted") ||
     args.message.toLowerCase().includes("fetch failed")
   );
 }

@@ -380,12 +380,24 @@ export class LlmService {
           jsonSchema,
         });
 
-        const response = await fetch(url, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(body),
-          signal,
-        });
+        // Apply a default 120s timeout when no caller-provided signal exists,
+        // preventing hung requests from blocking workers indefinitely.
+        const ac = signal ? undefined : new AbortController();
+        const timeoutId = ac
+          ? setTimeout(() => ac.abort(), 120_000)
+          : undefined;
+
+        let response: Response;
+        try {
+          response = await fetch(url, {
+            method: "POST",
+            headers,
+            body: JSON.stringify(body),
+            signal: signal ?? ac?.signal,
+          });
+        } finally {
+          if (timeoutId) clearTimeout(timeoutId);
+        }
 
         if (!response.ok) {
           const errorBody = await response.text().catch(() => "No error body");

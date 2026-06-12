@@ -80,8 +80,26 @@ export async function solveChallenge(
       timeout: 30_000,
     });
 
-    // If there's no challenge, we're done — save cookies anyway since the
-    // browser session established a valid cf_clearance
+    // If no challenge is detected on the original URL, the job posting may
+    // have expired (e.g. HTTP 404) and no longer triggers Cloudflare.
+    // Navigate to the base domain to force a fresh challenge.
+    if (!(await isChallengePage(page))) {
+      const existingJar = await readCookieJar(extractorId, storageDir);
+      if (!existingJar.hasClearanceCookie) {
+        try {
+          const baseUrl = new URL(url).origin;
+          await page.goto(baseUrl, {
+            waitUntil: "domcontentloaded",
+            timeout: 30_000,
+          });
+        } catch {
+          // Fallback navigation failed — proceed with original page state
+        }
+      }
+    }
+
+    // If there's still no challenge after the fallback, try to save whatever
+    // cookies exist (e.g. if a valid cf_clearance was already in the jar).
     if (!(await isChallengePage(page))) {
       const cookiesSaved = await saveReusableCookies(
         context,

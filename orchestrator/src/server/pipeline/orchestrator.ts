@@ -34,7 +34,6 @@ import {
   extractProjectsFromProfile,
   resolveResumeProjectsSettings,
 } from "../services/resumeProjects";
-import { LlmNotConfiguredError } from "../services/scorer";
 import { generateTailoring } from "../services/summary";
 import {
   type PendingChallenge,
@@ -52,6 +51,7 @@ import {
   loadProfileStep,
   notifyPipelineWebhookStep,
   processJobsStep,
+  retryFailedScoringJobs,
   scoreJobsStep,
   selectJobsStep,
 } from "./steps";
@@ -400,36 +400,60 @@ export async function runPipeline(
 
       ensureNotCancelled(tenantId);
       await persistResultSummary({ stage: "scoring" });
-      try {
-        ({ unprocessedJobs, scoredJobs } = await scoreJobsStep({
-          profile,
-          shouldCancel: () =>
-            getPipelineState(tenantId).cancelRequestedAt !== null,
-        }));
-      } catch (error) {
-        if (error instanceof LlmNotConfiguredError) {
-          const message = error.message;
-          progressHelpers.configurationRequired(message);
-          pipelineLogger.warn("Pipeline paused — LLM not configured", error);
 
-          await new Promise<void>((resolve) => {
-            tenantState.activeLlmConfigState = { resolve };
+      // --- Score all jobs (event-driven; failures don't block) ---
+      const scoringResult = await scoreJobsStep({
+        profile,
+        shouldCancel: () =>
+          getPipelineState(tenantId).cancelRequestedAt !== null,
+        onProgress: async (completed) => {
+          await persistResultSummary({
+            stage: "scoring",
+            jobsScored: completed,
           });
-          tenantState.activeLlmConfigState = null;
+        },
+      });
+      unprocessedJobs = scoringResult.unprocessedJobs;
+      scoredJobs = scoringResult.scoredJobs;
 
-          ensureNotCancelled(tenantId);
-
-          pipelineLogger.info("LLM configured, resuming scoring");
-
-          ({ unprocessedJobs, scoredJobs } = await scoreJobsStep({
+      // --- Retry failed scoring jobs with exponential backoff ---
+      if (scoringResult.failedJobIds.length > 0) {
+        const { recoveredJobIds, permanentlyFailedJobIds } =
+          await retryFailedScoringJobs({
+            failedJobIds: scoringResult.failedJobIds,
             profile,
             shouldCancel: () =>
               getPipelineState(tenantId).cancelRequestedAt !== null,
-          }));
-        } else {
-          throw error;
+          });
+
+        if (recoveredJobIds.length > 0) {
+          pipelineLogger.info("Recovered scoring on retry", {
+            recovered: recoveredJobIds.length,
+          });
+          // Merge recovered jobs into scoredJobs
+          for (const jobId of recoveredJobIds) {
+            if (scoredJobs.some((sj) => sj.id === jobId)) continue;
+            const rj = await jobsRepo.getJobById(jobId);
+            if (
+              rj &&
+              typeof rj.suitabilityScore === "number" &&
+              !Number.isNaN(rj.suitabilityScore)
+            ) {
+              scoredJobs.push({
+                ...rj,
+                suitabilityScore: rj.suitabilityScore as number,
+                suitabilityReason: rj.suitabilityReason ?? "",
+              });
+            }
+          }
+        }
+        if (permanentlyFailedJobIds.length > 0) {
+          pipelineLogger.warn("Scoring permanently failed for some jobs", {
+            jobIds: permanentlyFailedJobIds,
+          });
         }
       }
+
       await persistResultSummary({
         stage: "scoring",
         jobsScored: scoredJobs.length,
