@@ -1,3 +1,4 @@
+name: job-seeking
 # =============================================================================
 # Job Ops - Docker Compose Configuration
 # =============================================================================
@@ -10,7 +11,6 @@ services:
       secrets:
         - github_token
     image: ghcr.io/dakheera47/job-ops:latest
-    container_name: job-ops
     ports:
       - "3005:3001"
     volumes:
@@ -18,6 +18,8 @@ services:
       - ./data:/app/data
       # Persist Codex login/session data for app-server provider
       - codex-home:/app/codex-home
+      # Shared job-description markdown volume (same project name as cv-tailoring)
+      - ../cv-tailoring/software-engineer/00-source-reference:/app/jds
     environment:
       # Server config
       - NODE_ENV=production
@@ -30,6 +32,13 @@ services:
 
       # Reactive Resume (self-hosted) - points to the rxresume-app service on the Docker network
       - RXRESUME_URL=http://rxresume-app:3000
+
+      # Scheduled pipeline runner (daily saved search, Tijuana time)
+      - SCHEDULED_PIPELINE_SEARCH_NAME=${SCHEDULED_PIPELINE_SEARCH_NAME:-}
+      - SCHEDULED_PIPELINE_TENANT_ID=${SCHEDULED_PIPELINE_TENANT_ID:-}
+      - SCHEDULED_PIPELINE_USER_ID=${SCHEDULED_PIPELINE_USER_ID:-}
+      - SCHEDULED_PIPELINE_HOUR=${SCHEDULED_PIPELINE_HOUR:-7}
+      - SCHEDULED_PIPELINE_TIMEZONE=${SCHEDULED_PIPELINE_TIMEZONE:-America/Tijuana}
 
     env_file:
       - path: ./.env
@@ -95,13 +104,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
-
   # ---------------------------------------------------------------------------
   # Reactive Resume v5 - PostgreSQL Database
   # ---------------------------------------------------------------------------
   rxresume-db:
     image: postgres:16-alpine
-    container_name: reactive-resume-db
     env_file:
       - path: ./.env.rxresume
         required: true
@@ -119,7 +126,6 @@ services:
   # ---------------------------------------------------------------------------
   rxresume-app:
     image: amruthpillai/reactive-resume:v5
-    container_name: reactive-resume-app
     ports:
       - "3000:3000"
     depends_on:

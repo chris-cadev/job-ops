@@ -35,6 +35,7 @@ import { dispatchJobs } from "./commands/jobs.js";
 import { cmdOrchestrate } from "./commands/orchestrate.js";
 import { dispatchPipeline } from "./commands/pipeline.js";
 import { dispatchSettings } from "./commands/settings.js";
+import { dispatchTenants } from "./commands/tenants.js";
 import { loadConfig, saveConfig } from "./lib/config.js";
 import { printJson } from "./lib/output.js";
 
@@ -134,6 +135,9 @@ COMMANDS
     orchestrate --backup-only      Only create backup
     orchestrate --skip-backup      Skip backup step
 
+  tenants                   List tenants and user memberships
+    tenants list              Show all tenants with their users
+
 GLOBAL OPTIONS
   --api-url <url>            Override API base URL
   --format <json|table>      Output format (default: json)
@@ -184,6 +188,10 @@ async function main(): Promise<void> {
 
       case "settings":
         await dispatchSettings(subcommand, args, globalOptions);
+        break;
+
+      case "tenants":
+        await dispatchTenants(subcommand, args, globalOptions);
         break;
 
       case "orchestrate":

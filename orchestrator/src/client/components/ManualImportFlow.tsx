@@ -299,6 +299,15 @@ function getSourceHost(value: string): string | null {
   }
 }
 
+function isValidUrl(value: string): boolean {
+  try {
+    new URL(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function getBlockedAutofetchLabel(value: string): string | null {
   const host = getSourceHost(value)?.toLowerCase();
   if (!host) return null;
@@ -332,6 +341,9 @@ export const ManualImportFlow: React.FC<ManualImportFlowProps> = ({
   const [tailorAfterImport, setTailorAfterImport] = useState<boolean>(
     autoTailorOnManualImport,
   );
+  const [fieldErrors, setFieldErrors] = useState<
+    Partial<Record<DraftFieldKey, string>>
+  >({});
 
   useEffect(() => {
     if (active) {
@@ -346,6 +358,7 @@ export const ManualImportFlow: React.FC<ManualImportFlowProps> = ({
       setError(null);
       setFetchNotice(null);
       setIsImporting(false);
+      setFieldErrors({});
       setImportSource(
         initialSource ||
           (normalized.source as ManualImportTrackingSource) ||
@@ -369,6 +382,7 @@ export const ManualImportFlow: React.FC<ManualImportFlowProps> = ({
     setError(null);
     setFetchNotice(null);
     setIsImporting(false);
+    setFieldErrors({});
     setImportSource("pasted_description");
     setImportSourceHost(null);
     setFetchedSourceUrl(null);
@@ -459,6 +473,7 @@ export const ManualImportFlow: React.FC<ManualImportFlowProps> = ({
         normalized.jobUrl = fetchedSourceUrl;
       }
       setDraft(normalized);
+      setFieldErrors({});
       setWarning(response.warning ?? null);
       setImportSource(fetchedSourceUrl ? "fetched_url" : "pasted_description");
       setImportSourceHost(
@@ -479,6 +494,21 @@ export const ManualImportFlow: React.FC<ManualImportFlowProps> = ({
 
   const handleImport = async () => {
     if (!canImport) return;
+
+    setFieldErrors({});
+
+    const errors: Partial<Record<DraftFieldKey, string>> = {};
+    if (draft.jobUrl.trim() && !isValidUrl(draft.jobUrl)) {
+      errors.jobUrl = "Please enter a valid URL";
+    }
+    if (draft.applicationLink.trim() && !isValidUrl(draft.applicationLink)) {
+      errors.applicationLink = "Please enter a valid URL";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
 
     try {
       setIsImporting(true);
@@ -675,9 +705,14 @@ export const ManualImportFlow: React.FC<ManualImportFlowProps> = ({
                     key={field.id}
                     field={field}
                     value={draft[field.key]}
-                    onChange={(value) =>
-                      setDraft((prev) => ({ ...prev, [field.key]: value }))
-                    }
+                    onChange={(value) => {
+                      setDraft((prev) => ({ ...prev, [field.key]: value }));
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        [field.key]: undefined,
+                      }));
+                    }}
+                    error={fieldErrors[field.key]}
                   />
                 ))}
               </div>
@@ -694,10 +729,15 @@ export const ManualImportFlow: React.FC<ManualImportFlowProps> = ({
                     key={field.id}
                     field={field}
                     value={draft[field.key]}
-                    onChange={(value) =>
-                      setDraft((prev) => ({ ...prev, [field.key]: value }))
-                    }
+                    onChange={(value) => {
+                      setDraft((prev) => ({ ...prev, [field.key]: value }));
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        [field.key]: undefined,
+                      }));
+                    }}
                     compact
+                    error={fieldErrors[field.key]}
                   />
                 ))}
               </div>
@@ -787,7 +827,8 @@ const ReviewField: React.FC<{
   value: string;
   onChange: (value: string) => void;
   compact?: boolean;
-}> = ({ field, value, onChange, compact = false }) => {
+  error?: string;
+}> = ({ field, value, onChange, compact = false, error }) => {
   const hasValue = value.trim().length > 0;
   const needsReview = Boolean(field.required) && !hasValue;
   const Icon = field.icon;
@@ -830,6 +871,7 @@ const ReviewField: React.FC<{
               className="h-9 border-border/70 bg-background/60 text-sm"
             />
           )}
+          {error && <p className="text-xs text-destructive">{error}</p>}
         </div>
       </div>
     </div>

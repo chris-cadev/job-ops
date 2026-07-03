@@ -19,6 +19,7 @@ import { attachChallengeViewerUpgradeProxy } from "./services/challenge-viewer";
 import { initializeDemoModeServices } from "./services/demo-mode";
 import { applyStoredEnvOverrides } from "./services/envSettings";
 import { initializeHistoricalServerEventReplaySafely } from "./services/historical-product-analytics";
+import { initializeScheduledPipelineRun } from "./services/scheduled-pipeline-run";
 import { initialize as initializeVisaSponsors } from "./services/visa-sponsors/index";
 
 const AUTH_SESSION_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
@@ -128,6 +129,14 @@ async function startServer() {
       }
     } catch (error) {
       logger.warn("Failed to initialize backup service", {
+        error: sanitizeUnknown(error),
+      });
+    }
+
+    try {
+      await initializeScheduledPipelineRun();
+    } catch (error) {
+      logger.warn("Failed to initialize scheduled pipeline run", {
         error: sanitizeUnknown(error),
       });
     }

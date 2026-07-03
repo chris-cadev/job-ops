@@ -86,6 +86,7 @@ export const JobDetailsEditDrawer: React.FC<JobDetailsEditDrawerProps> = ({
 }) => {
   const [draft, setDraft] = useState<JobDetailsDraft>(emptyDraft);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
   const { readiness: tracerReadiness, isChecking: isTracerReadinessChecking } =
     useTracerReadiness();
@@ -94,6 +95,7 @@ export const JobDetailsEditDrawer: React.FC<JobDetailsEditDrawerProps> = ({
     if (!open) return;
     setDraft(normalizeFromJob(job));
     setValidationError(null);
+    setFieldErrors({});
     setIsSaving(false);
   }, [job, open]);
 
@@ -125,6 +127,9 @@ export const JobDetailsEditDrawer: React.FC<JobDetailsEditDrawerProps> = ({
   const handleSave = async () => {
     if (!job) return;
 
+    setFieldErrors({});
+    setValidationError(null);
+
     const title = draft.title.trim();
     const employer = draft.employer.trim();
     const jobUrl = draft.jobUrl.trim();
@@ -142,12 +147,15 @@ export const JobDetailsEditDrawer: React.FC<JobDetailsEditDrawerProps> = ({
       setValidationError("Job URL is required.");
       return;
     }
+    const urlErrors: Record<string, string> = {};
     if (!isValidUrl(jobUrl)) {
-      setValidationError("Job URL must be a valid URL.");
-      return;
+      urlErrors.jobUrl = "Please enter a valid URL";
     }
     if (applicationLink && !isValidUrl(applicationLink)) {
-      setValidationError("Application URL must be a valid URL.");
+      urlErrors.applicationLink = "Please enter a valid URL";
+    }
+    if (Object.keys(urlErrors).length > 0) {
+      setFieldErrors(urlErrors);
       return;
     }
     if (
@@ -257,19 +265,31 @@ export const JobDetailsEditDrawer: React.FC<JobDetailsEditDrawerProps> = ({
                     id="edit-job-url"
                     label="Job URL *"
                     value={draft.jobUrl}
-                    onChange={(value) =>
-                      setDraft((prev) => ({ ...prev, jobUrl: value }))
-                    }
+                    onChange={(value) => {
+                      setDraft((prev) => ({ ...prev, jobUrl: value }));
+                      setFieldErrors((prev) => {
+                        const next = { ...prev };
+                        delete next.jobUrl;
+                        return next;
+                      });
+                    }}
                     placeholder="https://..."
+                    error={fieldErrors.jobUrl}
                   />
                   <FieldInput
                     id="edit-application-url"
                     label="Application URL"
                     value={draft.applicationLink}
-                    onChange={(value) =>
-                      setDraft((prev) => ({ ...prev, applicationLink: value }))
-                    }
+                    onChange={(value) => {
+                      setDraft((prev) => ({ ...prev, applicationLink: value }));
+                      setFieldErrors((prev) => {
+                        const next = { ...prev };
+                        delete next.applicationLink;
+                        return next;
+                      });
+                    }}
                     placeholder="https://..."
+                    error={fieldErrors.applicationLink}
                   />
                   <FieldInput
                     id="edit-location"
@@ -400,7 +420,8 @@ const FieldInput: React.FC<{
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
-}> = ({ id, label, value, onChange, placeholder }) => (
+  error?: string;
+}> = ({ id, label, value, onChange, placeholder, error }) => (
   <div className="space-y-1">
     <label htmlFor={id} className="text-xs font-medium text-muted-foreground">
       {label}
@@ -411,5 +432,6 @@ const FieldInput: React.FC<{
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
     />
+    {error && <p className="text-xs text-destructive">{error}</p>}
   </div>
 );

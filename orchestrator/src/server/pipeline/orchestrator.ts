@@ -7,44 +7,52 @@
  * 3. Leave all jobs in "discovered" for manual processing
  */
 
-import { join } from "node:path";
-import type { AppErrorCode } from "@infra/errors";
-import { logger } from "@infra/logger";
-import { trackServerProductEvent } from "@infra/product-analytics";
-import { runWithRequestContext } from "@infra/request-context";
-import { getActiveTenantId } from "@server/tenancy/context";
-import { createLocationIntentFromLegacyInputs } from "@shared/location-domain.js";
+import {
+  mkdir,
+  writeFile,
+} from 'node:fs/promises';
+import { join } from 'node:path';
+
+import type { AppErrorCode } from '@infra/errors';
+import { logger } from '@infra/logger';
+import { trackServerProductEvent } from '@infra/product-analytics';
+import { runWithRequestContext } from '@infra/request-context';
+import { getActiveTenantId } from '@server/tenancy/context';
+import {
+  createLocationIntentFromLegacyInputs,
+} from '@shared/location-domain.js';
 import type {
   JobStatus,
   PipelineConfig,
   PipelineRunSavedDetails,
-} from "@shared/types";
-import { getDataDir } from "../config/dataDir";
-import * as jobsRepo from "../repositories/jobs";
-import * as pipelineRepo from "../repositories/pipeline";
-import * as settingsRepo from "../repositories/settings";
-import { generatePdf } from "../services/pdf";
+} from '@shared/types';
+
+import { getDataDir } from '../config/dataDir';
+import * as jobsRepo from '../repositories/jobs';
+import * as pipelineRepo from '../repositories/pipeline';
+import * as settingsRepo from '../repositories/settings';
+import { generatePdf } from '../services/pdf';
 import {
   createJobPdfFingerprint,
   resolvePdfFingerprintContext,
-} from "../services/pdf-fingerprint";
-import { getProfile } from "../services/profile";
-import { pickProjectIdsForJob } from "../services/projectSelection";
+} from '../services/pdf-fingerprint';
+import { getProfile } from '../services/profile';
+import { pickProjectIdsForJob } from '../services/projectSelection';
 import {
   extractProjectsFromProfile,
   resolveResumeProjectsSettings,
-} from "../services/resumeProjects";
-import { generateTailoring } from "../services/summary";
+} from '../services/resumeProjects';
+import { generateTailoring } from '../services/summary';
 import {
   type PendingChallenge,
   progressHelpers,
   resetProgress,
-} from "./progress";
+} from './progress';
 import {
   buildPipelineRunSavedDetails,
   createPipelineRunResultSummary,
   updatePipelineRunResultSummary,
-} from "./run-details";
+} from './run-details';
 import {
   discoverJobsStep,
   importJobsStep,
@@ -54,7 +62,7 @@ import {
   retryFailedScoringJobs,
   scoreJobsStep,
   selectJobsStep,
-} from "./steps";
+} from './steps';
 
 const DEFAULT_CONFIG: PipelineConfig = {
   topN: 10,
@@ -386,6 +394,26 @@ export async function runPipeline(
 
       ensureNotCancelled(tenantId);
       jobsDiscovered = discoveredJobs.length;
+
+      // ponytail: write raw job descriptions to shared JDs volume — no deps
+      const jdDir = process.env.JD_OUTPUT_DIR ?? "/app/jds";
+      for (const job of discoveredJobs) {
+        if (!job.jobDescription) continue;
+        const slug = `${job.employer}_${job.title}`
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "");
+        try {
+          await mkdir(jdDir, { recursive: true });
+          await writeFile(join(jdDir, `${slug}.md`), job.jobDescription, "utf-8");
+        } catch (err) {
+          logger.warn("Failed to write job description markdown", {
+            slug,
+            error: err instanceof Error ? err.message : "unknown error",
+          });
+        }
+      }
+
       const { created, skipped, fuzzyMerged } = await importJobsStep({
         discoveredJobs,
       });
@@ -441,7 +469,7 @@ export async function runPipeline(
             ) {
               scoredJobs.push({
                 ...rj,
-                suitabilityScore: rj.suitabilityScore as number,
+                suitabilityScore: rj.suitabilityScore,
                 suitabilityReason: rj.suitabilityReason ?? "",
               });
             }

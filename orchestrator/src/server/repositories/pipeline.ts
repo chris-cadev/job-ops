@@ -134,6 +134,29 @@ export async function updatePipelineRun(
 }
 
 /**
+ * Get the latest pipeline run started today (UTC).
+ * Returns null if no run exists today.
+ */
+export async function getLatestPipelineRunToday(): Promise<PipelineRun | null> {
+  const tenantId = getActiveTenantId();
+  const todayStart = new Date();
+  todayStart.setUTCHours(0, 0, 0, 0);
+  const [row] = await db
+    .select()
+    .from(pipelineRuns)
+    .where(
+      and(
+        eq(pipelineRuns.tenantId, tenantId),
+        gte(pipelineRuns.startedAt, todayStart.toISOString()),
+      ),
+    )
+    .orderBy(desc(pipelineRuns.startedAt))
+    .limit(1);
+
+  return row ? mapRowToPipelineRun(row) : null;
+}
+
+/**
  * Get the latest pipeline run.
  */
 export async function getLatestPipelineRun(): Promise<PipelineRun | null> {

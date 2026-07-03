@@ -190,3 +190,23 @@ async function getPipelineSearchPreset(
 
   return row ? mapRowToSearchPreset(row) : null;
 }
+
+export async function findPipelineSearchPresetByName(
+  name: string,
+): Promise<PipelineSearchPreset | null> {
+  const tenantId = getActiveTenantId();
+  const userId = requireActiveUserId();
+  const [row] = await db
+    .select()
+    .from(pipelineSearchPresets)
+    .where(
+      and(
+        eq(pipelineSearchPresets.tenantId, tenantId),
+        eq(pipelineSearchPresets.userId, userId),
+        eq(pipelineSearchPresets.name, name),
+      ),
+    )
+    .limit(1);
+
+  return row ? mapRowToSearchPreset(row) : null;
+}

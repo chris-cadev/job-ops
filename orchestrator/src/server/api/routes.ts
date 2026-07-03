@@ -19,6 +19,7 @@ import { postApplicationProvidersRouter } from "./routes/post-application-provid
 import { postApplicationReviewRouter } from "./routes/post-application-review";
 import { profileRouter } from "./routes/profile";
 import { settingsRouter } from "./routes/settings";
+import { tenantsRouter } from "./routes/tenants";
 import { tracerLinksRouter } from "./routes/tracer-links";
 import { visaSponsorsRouter } from "./routes/visa-sponsors";
 import { watchlistRouter } from "./routes/watchlist";
@@ -49,4 +50,5 @@ apiRouter.use("/workspaces", workspacesRouter);
 apiRouter.use("/auth", authRouter);
 apiRouter.use("/workday", workdayRouter);
 apiRouter.use("/watchlist", watchlistRouter);
+apiRouter.use("/tenants", tenantsRouter);
 apiRouter.use("/", extractorHealthRouter);
