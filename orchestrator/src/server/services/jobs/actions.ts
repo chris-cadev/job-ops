@@ -222,10 +222,12 @@ export async function executeJobActionForJob(
           return rawProfile as Record<string, unknown>;
         })();
 
-    const [{ score, reason }, jobBrief] = await Promise.all([
-      scoreJobSuitability(job, profile),
-      generateJobBrief(job.jobDescription, { jobId: job.id }),
-    ]);
+    // Sequential: local LLM models share a single KV cache — running
+    // scoring and brief extraction in parallel causes "Context size exceeded".
+    const { score, reason } = await scoreJobSuitability(job, profile);
+    const jobBrief = await generateJobBrief(job.jobDescription, {
+      jobId: job.id,
+    });
 
     const updated = await jobsRepo.updateJob(job.id, {
       suitabilityScore: score,

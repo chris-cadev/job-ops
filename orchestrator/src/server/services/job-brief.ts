@@ -118,7 +118,19 @@ export async function generateJobBrief(
   }
 }
 
+/**
+ * Maximum characters for the job description in the job-brief prompt.
+ * Keeps total prompt under ~6k tokens for small-context models.
+ */
+const JD_CHAR_BUDGET = 12_000;
+
 function buildUserPrompt(jobDescription: string): string {
+  const capped =
+    jobDescription.length > JD_CHAR_BUDGET
+      ? jobDescription.slice(0, JD_CHAR_BUDGET) +
+        "\n[truncated to fit model context window]"
+      : jobDescription;
+
   return `
 Extract a concise, no-BS job brief from this job description.
 
@@ -143,7 +155,7 @@ Rules for fields:
 - repeated_signals: maximum 5 short chips.
 
 Job description:
-${jobDescription}
+${capped}
 `.trim();
 }
 

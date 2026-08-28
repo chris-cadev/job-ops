@@ -315,13 +315,12 @@ describe("salary penalty", () => {
     return call?.messages?.[0]?.content ?? "";
   }
 
-  function getPromptProfile(): Record<string, any> {
+  function getPromptProfileText(): string {
     const prompt = getScoringPrompt();
     const match = prompt.match(
       /CANDIDATE PROFILE:\n(?<profile>[\s\S]*?)\n\nJOB LISTING:/,
     );
-    expect(match?.groups?.profile).toBeDefined();
-    return JSON.parse(match?.groups?.profile ?? "{}");
+    return match?.groups?.profile ?? "";
   }
 
   describe("profile prompt sanitization", () => {
@@ -378,34 +377,17 @@ describe("salary penalty", () => {
         },
       );
 
-      const promptProfile = getPromptProfile();
-      expect(promptProfile.basics).toEqual({
-        label: "Software Engineer",
-        summary: "Builds React and TypeScript applications.",
-        location: "Sheffield",
-      });
-      expect(promptProfile.education).toEqual([
-        {
-          school: "University of Lancashire",
-          degree: "BSc Software Engineering",
-          location: "Preston",
-          period: "2022 - 2025",
-          description: "Computer Science and Software Engineering.",
-        },
-      ]);
-      expect(promptProfile.experience).toHaveLength(6);
-      expect(promptProfile.experience[5]).toEqual({
-        company: "Company 6",
-        position: "Software Engineer",
-        summary: "Experience summary 6",
-      });
-      expect(promptProfile.experience[0].roles).toEqual([
-        {
-          position: "Frontend Developer",
-          period: "2024",
-          description: "Built React features.",
-        },
-      ]);
+      const profileText = getPromptProfileText();
+      // Profile snapshot should contain key data as compact text
+      expect(profileText).toContain("Headline: Software Engineer");
+      expect(profileText).toContain("Builds React and TypeScript applications.");
+      expect(profileText).toContain("Sheffield");
+      expect(profileText).toContain("BSc Software Engineering");
+      expect(profileText).toContain("University of Lancashire");
+      // Should cap experience to 5 items
+      expect(profileText).toContain("Company 5");
+      expect(profileText).not.toContain("Company 6");
+      // PII and IDs must be stripped
       expect(getScoringPrompt()).not.toContain("private@example.com");
       expect(getScoringPrompt()).not.toContain("+44 7000 000000");
       expect(getScoringPrompt()).not.toContain("education-private-id");
@@ -447,15 +429,11 @@ describe("salary penalty", () => {
         },
       );
 
-      const promptProfile = getPromptProfile();
-      expect(promptProfile.education).toEqual([
-        {
-          school: "University of Sheffield",
-          degree: "BSc Computer Science",
-          area: "Software Engineering",
-          location: "Sheffield",
-        },
-      ]);
+      const profileText = getPromptProfileText();
+      // Education should appear in the compact profile text
+      expect(profileText).toContain("BSc Computer Science");
+      expect(profileText).toContain("Software Engineering");
+      expect(profileText).toContain("University of Sheffield");
       expect(getScoringPrompt()).not.toContain("private-renderer-layout");
     });
 
@@ -506,13 +484,13 @@ describe("salary penalty", () => {
         },
       );
 
-      const promptProfile = getPromptProfile();
-      expect(promptProfile.skills).toEqual([
-        { name: "Frontend", keywords: ["React"] },
-      ]);
-      expect(promptProfile.education).toEqual([
-        { school: "Visible University", degree: "BSc Computing" },
-      ]);
+      const profileText = getPromptProfileText();
+      // Visible items should be present
+      expect(profileText).toContain("Frontend");
+      expect(profileText).toContain("React");
+      expect(profileText).toContain("Visible University");
+      expect(profileText).toContain("BSc Computing");
+      // Hidden and invisible items must be excluded
       expect(getScoringPrompt()).not.toContain("PrivateSkill");
       expect(getScoringPrompt()).not.toContain("InvisibleSkill");
       expect(getScoringPrompt()).not.toContain("Hidden University");

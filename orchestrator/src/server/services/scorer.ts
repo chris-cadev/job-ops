@@ -104,7 +104,7 @@ export async function scoreJobSuitability(
     getEffectiveSettings(),
   ]);
 
-  const prompt = buildScoringPrompt(job, sanitizeProfileForPrompt(profile), {
+  const prompt = buildScoringPrompt(job, profile, {
     instructions: settings.scoringInstructions?.value ?? "",
     promptTemplate:
       settings.scoringPromptTemplate?.value ??
@@ -253,129 +253,186 @@ export function parseJsonFromContent(
   throw new Error("Unable to parse JSON from model response");
 }
 
+// --- Profile condensation for scoring ---
+
+const SCORING_INPUT_CHAR_BUDGET = 16_000;
+const MAX_SKILLS = 15;
+const MAX_EXPERIENCE = 5;
+const MAX_PROJECTS = 4;
+const MAX_EDUCATION = 3;
+const MAX_ITEM_TEXT = 300;
+
 function buildScoringPrompt(
   job: Job,
   profile: Record<string, unknown>,
   preferences: ScoringPreferences,
 ): string {
+  const profileSnapshot = buildScoringProfileSnapshot(profile);
+  const jobDescription = job.jobDescription || "No description available";
+
+  const totalChars = profileSnapshot.length + jobDescription.length;
+  const { a: cappedProfile, b: cappedJd } = splitBudget(
+    profileSnapshot,
+    jobDescription,
+    SCORING_INPUT_CHAR_BUDGET,
+  );
+
+  if (
+    cappedProfile.length < profileSnapshot.length ||
+    cappedJd.length < jobDescription.length
+  ) {
+    logger.info("Scoring prompt inputs truncated to fit context window", {
+      jobId: job.id,
+      originalChars: totalChars,
+      budgetChars: SCORING_INPUT_CHAR_BUDGET,
+      profileChars: `${cappedProfile.length}/${profileSnapshot.length}`,
+      jdChars: `${cappedJd.length}/${jobDescription.length}`,
+    });
+  }
+
   return renderPromptTemplate(preferences.promptTemplate, {
-    profileJson: JSON.stringify(profile, null, 2),
+    profileJson: cappedProfile,
     jobTitle: job.title,
     employer: job.employer,
     location: job.location || "Not specified",
     salary: job.salary || "Not specified",
     degreeRequired: job.degreeRequired || "Not specified",
     disciplines: job.disciplines || "Not specified",
-    jobDescription: job.jobDescription || "No description available",
+    jobDescription: cappedJd,
     scoringInstructionsText: preferences.instructions
       ? preferences.instructions
       : "No additional custom scoring instructions.",
   });
 }
 
-function sanitizeProfileForPrompt(
-  profile: Record<string, unknown>,
-): Record<string, unknown> {
-  return {
-    basics: sanitizeBasics(profile.basics),
-    skills: sanitizeItems(profile, "skills", [
-      "name",
-      "description",
-      "level",
-      "proficiency",
-      "keywords",
-    ]),
-    experience: sanitizeItems(profile, "experience", [
-      "company",
-      "position",
-      "location",
-      "date",
-      "period",
-      "summary",
-      "description",
-    ]),
-    projects: sanitizeItems(profile, "projects", [
-      "name",
-      "description",
-      "date",
-      "period",
-      "summary",
-      "keywords",
-    ]),
-    education: sanitizeItems(profile, "education", [
-      "school",
-      "institution",
-      "degree",
-      "area",
-      "grade",
-      "location",
-      "date",
-      "period",
-      "summary",
-      "description",
-    ]),
-    languages: sanitizeItems(profile, "languages", [
-      "language",
-      "fluency",
-      "level",
-    ]),
-    awards: sanitizeItems(profile, "awards", [
-      "title",
-      "awarder",
-      "date",
-      "summary",
-      "description",
-    ]),
-    certifications: sanitizeItems(profile, "certifications", [
-      "title",
-      "issuer",
-      "date",
-      "summary",
-      "description",
-    ]),
-    publications: sanitizeItems(profile, "publications", [
-      "title",
-      "publisher",
-      "date",
-      "summary",
-      "description",
-    ]),
-    volunteer: sanitizeItems(profile, "volunteer", [
-      "organization",
-      "position",
-      "location",
-      "date",
-      "period",
-      "summary",
-      "description",
-    ]),
-    interests: sanitizeItems(profile, "interests", [
-      "name",
-      "summary",
-      "description",
-      "keywords",
-    ]),
-  };
-}
+/**
+ * Build a compact text snapshot of the candidate profile for scoring.
+ * Caps item counts and truncates long text to keep the prompt small enough
+ * for small-context models (e.g. Gemma 4 2B with 8k context window).
+ *
+ * Mirrors the approach used in ghostwriter-context.ts buildProfileSnapshot.
+ */
+function buildScoringProfileSnapshot(profile: Record<string, unknown>): string {
+  const parts: string[] = [];
 
-function sanitizeBasics(value: unknown): ProfileRecord {
-  if (!isRecord(value)) return {};
-  return pickDefined(value, ["label", "headline", "summary", "location"]);
-}
+  // --- basics ---
+  const basics = isRecord(profile.basics) ? profile.basics : {};
+  const headline =
+    (typeof basics.headline === "string" && basics.headline) ||
+    (typeof basics.label === "string" && basics.label) ||
+    "";
+  if (headline) parts.push(`Headline: ${scoringTruncate(headline, 200)}`);
 
-function sanitizeItems(
-  profile: ProfileRecord,
-  sectionKey: string,
-  allowedKeys: string[],
-): ProfileRecord[] {
-  return collectSectionItems(profile, sectionKey)
+  const summary = (typeof basics.summary === "string" && basics.summary) || "";
+  if (summary) parts.push(`Summary:\n${scoringTruncate(summary, 600)}`);
+
+  const location =
+    (typeof basics.location === "string" && basics.location) || "";
+  if (location) parts.push(`Location: ${location}`);
+
+  // --- skills ---
+  const skills = collectSectionItems(profile, "skills")
     .filter(isVisibleCvItem)
-    .map((item) => sanitizeCvItem(item, allowedKeys))
-    .filter((item) => Object.keys(item).length > 0);
+    .slice(0, MAX_SKILLS)
+    .map((item) => {
+      const name = typeof item.name === "string" ? item.name : "";
+      const kws = Array.isArray(item.keywords)
+        ? item.keywords.slice(0, 6).join(", ")
+        : "";
+      const level = typeof item.level === "string" ? ` (${item.level})` : "";
+      return `${name}${level}${kws ? `: ${kws}` : ""}`;
+    })
+    .filter(Boolean);
+  if (skills.length > 0) parts.push(`Skills:\n- ${skills.join("\n- ")}`);
+
+  // --- experience ---
+  const experience = collectSectionItems(profile, "experience")
+    .filter(isVisibleCvItem)
+    .slice(0, MAX_EXPERIENCE)
+    .map((item) => {
+      const pos = typeof item.position === "string" ? item.position : "";
+      const co = typeof item.company === "string" ? item.company : "";
+      const date = typeof item.date === "string" ? item.date : "";
+      const text =
+        (typeof item.summary === "string" && item.summary) ||
+        (typeof item.description === "string" && item.description) ||
+        "";
+      return `${pos}${co ? ` @ ${co}` : ""}${date ? ` (${date})` : ""}: ${scoringTruncate(text, MAX_ITEM_TEXT)}`;
+    })
+    .filter(Boolean);
+  if (experience.length > 0)
+    parts.push(`Experience:\n- ${experience.join("\n- ")}`);
+
+  // --- projects ---
+  const projects = collectSectionItems(profile, "projects")
+    .filter(isVisibleCvItem)
+    .slice(0, MAX_PROJECTS)
+    .map((item) => {
+      const name = typeof item.name === "string" ? item.name : "";
+      const date = typeof item.date === "string" ? item.date : "";
+      const text =
+        (typeof item.summary === "string" && item.summary) ||
+        (typeof item.description === "string" && item.description) ||
+        "";
+      return `${name}${date ? ` (${date})` : ""}: ${scoringTruncate(text, MAX_ITEM_TEXT)}`;
+    })
+    .filter(Boolean);
+  if (projects.length > 0) parts.push(`Projects:\n- ${projects.join("\n- ")}`);
+
+  // --- education ---
+  const education = collectSectionItems(profile, "education")
+    .filter(isVisibleCvItem)
+    .slice(0, MAX_EDUCATION)
+    .map((item) => {
+      const degree = typeof item.degree === "string" ? item.degree : "";
+      const area = typeof item.area === "string" ? item.area : "";
+      const school =
+        (typeof item.school === "string" && item.school) ||
+        (typeof item.institution === "string" && item.institution) ||
+        "";
+      const date = typeof item.date === "string" ? item.date : "";
+      return `${degree}${area ? ` in ${area}` : ""}${school ? ` — ${school}` : ""}${date ? ` (${date})` : ""}`;
+    })
+    .filter(Boolean);
+  if (education.length > 0)
+    parts.push(`Education:\n- ${education.join("\n- ")}`);
+
+  // --- certifications ---
+  const certs = collectSectionItems(profile, "certifications")
+    .filter(isVisibleCvItem)
+    .slice(0, 3)
+    .map((item) => {
+      const title = typeof item.title === "string" ? item.title : "";
+      const issuer = typeof item.issuer === "string" ? item.issuer : "";
+      return `${title}${issuer ? ` — ${issuer}` : ""}`;
+    })
+    .filter(Boolean);
+  if (certs.length > 0) parts.push(`Certifications:\n- ${certs.join("\n- ")}`);
+
+  // --- languages ---
+  const langs = collectSectionItems(profile, "languages")
+    .filter(isVisibleCvItem)
+    .slice(0, 5)
+    .map((item) => {
+      const lang = typeof item.language === "string" ? item.language : "";
+      const fluency = typeof item.fluency === "string" ? item.fluency : "";
+      return `${lang}${fluency ? ` (${fluency})` : ""}`;
+    })
+    .filter(Boolean);
+  if (langs.length > 0) parts.push(`Languages: ${langs.join(", ")}`);
+
+  return parts.join("\n\n");
+}
+
+// --- Shared helpers ---
+
+function scoringTruncate(value: string, max: number): string {
+  if (value.length <= max) return value;
+  return `${value.slice(0, max - 3)}...`;
 }
 
 function collectSectionItems(
-  profile: ProfileRecord,
+  profile: Record<string, unknown>,
   sectionKey: string,
 ): ProfileRecord[] {
   const sections = isRecord(profile.sections) ? profile.sections : {};
@@ -400,35 +457,6 @@ function collectSectionItems(
   return [];
 }
 
-function sanitizeCvItem(
-  item: ProfileRecord,
-  allowedKeys: string[],
-): ProfileRecord {
-  const sanitized = pickDefined(item, allowedKeys);
-  if (Array.isArray(item.roles)) {
-    const roles = item.roles
-      .filter(isRecord)
-      .filter(isVisibleCvItem)
-      .map((role) =>
-        pickDefined(role, ["position", "period", "summary", "description"]),
-      )
-      .filter((role) => Object.keys(role).length > 0);
-    if (roles.length > 0) sanitized.roles = roles;
-  }
-  return sanitized;
-}
-
-function pickDefined(source: ProfileRecord, keys: string[]): ProfileRecord {
-  const result: ProfileRecord = {};
-  for (const key of keys) {
-    const value = source[key];
-    if (value !== undefined && value !== null && value !== "") {
-      result[key] = value;
-    }
-  }
-  return result;
-}
-
 function isVisibleCvItem(item: ProfileRecord): boolean {
   if (item.hidden === true) return false;
   if (item.visible === false) return false;
@@ -437,6 +465,28 @@ function isVisibleCvItem(item: ProfileRecord): boolean {
 
 function isRecord(value: unknown): value is ProfileRecord {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+/**
+ * Split a character budget between two strings, truncating the longer one first.
+ * Returns both strings capped so their combined length ≤ budget.
+ */
+function splitBudget(
+  a: string,
+  b: string,
+  budget: number,
+): { a: string; b: string } {
+  const total = a.length + b.length;
+  if (total <= budget) return { a, b };
+
+  const ratio = a.length / total;
+  const budgetA = Math.floor(budget * ratio);
+  const budgetB = budget - budgetA;
+
+  return {
+    a: scoringTruncate(a, budgetA),
+    b: scoringTruncate(b, budgetB),
+  };
 }
 
 /**

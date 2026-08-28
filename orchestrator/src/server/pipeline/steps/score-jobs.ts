@@ -31,10 +31,12 @@ async function scoreSingleJob(args: {
 }): Promise<ScoreJobOutcome> {
   const { job, profile, autoSkipThreshold } = args;
 
-  const [{ score, reason }, jobBrief] = await Promise.all([
-    scoreJobSuitability(job, profile),
-    generateJobBrief(job.jobDescription, { jobId: job.id }),
-  ]);
+  // Sequential: local LLM models share a single KV cache — running
+  // scoring and brief extraction in parallel causes "Context size exceeded".
+  const { score, reason } = await scoreJobSuitability(job, profile);
+  const jobBrief = await generateJobBrief(job.jobDescription, {
+    jobId: job.id,
+  });
 
   if (score === null) {
     return { success: false, error: reason };
