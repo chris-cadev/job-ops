@@ -147,6 +147,8 @@ flowchart TD
 - Generated PDFs: `data/pdfs/`
 - Cloudflare challenge cookies: `data/cloudflare-cookies/`
 
+Job descriptions can also be exported to markdown files on disk — see [JD Sync](./jd-sync) and the [jd-sync reference](../reference/jd-sync-reference).
+
 ## Public demo mode
 
 Set `DEMO_MODE=true` for sandbox deployments.

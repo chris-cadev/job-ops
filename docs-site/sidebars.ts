@@ -66,6 +66,7 @@ const sidebars: SidebarsConfig = {
         "getting-started/self-hosting",
         "getting-started/gmail-oauth-setup",
         "getting-started/database-backups",
+        "getting-started/jd-sync",
         "troubleshooting/common-problems",
       ],
     },
@@ -77,7 +78,11 @@ const sidebars: SidebarsConfig = {
     {
       type: "category",
       label: "Reference / FAQ",
-      items: ["reference/faq", "reference/documentation-style-guide"],
+      items: [
+        "reference/faq",
+        "reference/jd-sync-reference",
+        "reference/documentation-style-guide",
+      ],
     },
   ],
 };
