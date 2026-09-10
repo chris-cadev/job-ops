@@ -33,10 +33,11 @@ services:
       # Reactive Resume (self-hosted) - points to the rxresume-app service on the Docker network
       - RXRESUME_URL=http://rxresume-app:3000
 
-      # Scheduled pipeline runner (daily saved search, Tijuana time)
+      # Scheduled pipeline runner (cron-scheduled saved search, Tijuana time)
       - SCHEDULED_PIPELINE_SEARCH_NAME=${SCHEDULED_PIPELINE_SEARCH_NAME:-}
       - SCHEDULED_PIPELINE_TENANT_ID=${SCHEDULED_PIPELINE_TENANT_ID:-}
       - SCHEDULED_PIPELINE_USER_ID=${SCHEDULED_PIPELINE_USER_ID:-}
+      - SCHEDULED_PIPELINE_CRON=${SCHEDULED_PIPELINE_CRON:-}
       - SCHEDULED_PIPELINE_HOUR=${SCHEDULED_PIPELINE_HOUR:-7}
       - SCHEDULED_PIPELINE_TIMEZONE=${SCHEDULED_PIPELINE_TIMEZONE:-America/Tijuana}
 

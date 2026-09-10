@@ -25,6 +25,7 @@ import type {
   JobStatus,
   PipelineConfig,
   PipelineRunSavedDetails,
+  PipelineRunTrigger,
 } from '@shared/types';
 
 import { getDataDir } from '../config/dataDir';
@@ -238,6 +239,7 @@ function buildRepeatedChallengeMessage(args: {
  */
 export async function runPipeline(
   config: Partial<PipelineConfig> = {},
+  options: { trigger?: PipelineRunTrigger } = {},
 ): Promise<{
   success: boolean;
   jobsDiscovered: number;
@@ -266,6 +268,7 @@ export async function runPipeline(
     minSuitabilityScore: mergedConfig.minSuitabilityScore,
     sources: mergedConfig.sources,
     locationIntent,
+    ...(options.trigger ? { trigger: options.trigger } : {}),
   } as const;
 
   let savedDetails: PipelineRunSavedDetails | null = null;

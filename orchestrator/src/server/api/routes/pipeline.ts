@@ -489,12 +489,15 @@ pipelineRouter.post("/run", async (req: Request, res: Response) => {
 
     // Start pipeline in background
     runWithRequestContext({}, () => {
-      runPipeline({
-        topN: config.topN,
-        minSuitabilityScore: config.minSuitabilityScore,
-        sources: config.sources,
-        locationIntent,
-      }).catch((error) => {
+      runPipeline(
+        {
+          topN: config.topN,
+          minSuitabilityScore: config.minSuitabilityScore,
+          sources: config.sources,
+          locationIntent,
+        },
+        { trigger: "manual" },
+      ).catch((error) => {
         logger.error("Background pipeline run failed", error);
       });
     });

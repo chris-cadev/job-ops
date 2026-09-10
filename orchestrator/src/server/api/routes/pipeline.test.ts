@@ -523,6 +523,7 @@ describe.sequential("Pipeline API routes", () => {
           matchStrictness: "flexible",
         }),
       }),
+      { trigger: "manual" },
     );
     expect(trackCanonicalActivationEvent).toHaveBeenCalledWith(
       "jobs_pipeline_run_started",
@@ -574,6 +575,7 @@ describe.sequential("Pipeline API routes", () => {
           matchStrictness: "exact_only",
         }),
       }),
+      { trigger: "manual" },
     );
 
     const naukriRunRes = await fetch(`${baseUrl}/api/pipeline/run`, {
@@ -595,6 +597,7 @@ describe.sequential("Pipeline API routes", () => {
           country: "india",
         }),
       }),
+      { trigger: "manual" },
     );
 
     const blockedNaukriRes = await fetch(`${baseUrl}/api/pipeline/run`, {

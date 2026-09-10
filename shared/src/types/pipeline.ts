@@ -19,11 +19,15 @@ export interface PipelineConfig {
   enableAutoTailoring?: boolean;
 }
 
+export type PipelineRunTrigger = "manual" | "scheduled";
+
 export interface PipelineRunConfigSnapshot {
   topN: number;
   minSuitabilityScore: number;
   sources: ExtractorSourceId[];
   locationIntent: LocationIntent;
+  /** How the run was started. Absent on runs created before trigger tagging. */
+  trigger?: PipelineRunTrigger;
 }
 
 export interface PipelineRun {

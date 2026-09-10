@@ -134,26 +134,15 @@ export async function updatePipelineRun(
 }
 
 /**
- * Get the latest pipeline run started today (UTC).
- * Returns null if no run exists today.
+ * Get the latest scheduled pipeline run (manual runs don't count).
+ * Trigger tagging lives in the config snapshot JSON, so filter in memory.
+ * Returns null if no scheduled run exists yet.
  */
-export async function getLatestPipelineRunToday(): Promise<PipelineRun | null> {
-  const tenantId = getActiveTenantId();
-  const todayStart = new Date();
-  todayStart.setUTCHours(0, 0, 0, 0);
-  const [row] = await db
-    .select()
-    .from(pipelineRuns)
-    .where(
-      and(
-        eq(pipelineRuns.tenantId, tenantId),
-        gte(pipelineRuns.startedAt, todayStart.toISOString()),
-      ),
-    )
-    .orderBy(desc(pipelineRuns.startedAt))
-    .limit(1);
-
-  return row ? mapRowToPipelineRun(row) : null;
+export async function getLatestScheduledPipelineRun(): Promise<PipelineRun | null> {
+  const runs = await getRecentPipelineRuns(50);
+  return (
+    runs.find((run) => run.configSnapshot?.trigger === "scheduled") ?? null
+  );
 }
 
 /**

@@ -1,13 +1,22 @@
 /**
- * Scheduled pipeline runner — runs a saved search pipeline daily at a local time.
+ * Scheduled pipeline runner — runs a saved search pipeline on a cron schedule.
  *
  * Reads config from env vars; no-ops if not configured.
- * On startup, checks if the pipeline already ran today (or failed and needs retry).
- * Uses the in-process scheduler (no separate cron or Docker service needed).
+ * On startup, runs only if no *scheduled* run covered the previous tick
+ * (manual "Run jobs" clicks don't count). Uses the in-process scheduler
+ * (no separate cron or Docker service needed).
  *
- * ponytail: TZ-aware scheduling via synchronous process.env.TZ swap.
+ * Cadence is `SCHEDULED_PIPELINE_CRON` (5-field cron, e.g. `0 7 * * *`
+ * daily, or 7am every odd day-of-month for a two-day rhythm). Note: a
+ * step in day-of-month is month-anchored (1,3,5…31, then 1 again), so a
+ * 31-day month followed by the 1st yields a 1-day gap. Without
+ * `SCHEDULED_PIPELINE_CRON`, falls back to the legacy daily
+ * `SCHEDULED_PIPELINE_HOUR`.
+ *
+ * ponytail: TZ-aware scheduling via croner (validates IANA zone via Intl).
  * ponytail: In-process — no separate Docker service, no network hop.
- * ponytail: Uses pipeline_runs table as the "did we run today?" state machine.
+ * ponytail: Uses pipeline_runs config-snapshot trigger tag as the
+ *   "did the schedule run?" state machine — no DB migration.
  */
 
 import { logger } from "@infra/logger";
@@ -17,9 +26,13 @@ import * as pipelineRepo from "@server/repositories/pipeline";
 import * as pipelineSearchPresetsRepo from "@server/repositories/pipeline-search-presets";
 import { ensurePipelineSearchTerms } from "@server/services/pipeline-search-terms";
 import { createLocationIntent } from "@shared/location-intelligence.js";
-import type { PipelineConfig } from "@shared/types";
+import type { PipelineConfig, PipelineRun } from "@shared/types";
+import { Cron } from "croner";
 
 const ENV_PREFIX = "SCHEDULED_PIPELINE";
+
+/** Max setTimeout delay (~24.8 days); longer waits are re-armed. */
+const MAX_TIMEOUT_MS = 2_147_483_647;
 
 interface SchedulerState {
   timer: ReturnType<typeof setTimeout> | null;
@@ -35,25 +48,71 @@ function clearScheduledRun(): void {
 }
 
 /**
- * Compute the next UTC Date for a given local hour + IANA timezone.
- * Synchronous and safe: TZ is swapped, used, and restored without awaiting.
- * ponytail: Node's Date respects TZ for setHours/getDate DST transitions.
+ * Resolve the active schedule. `SCHEDULED_PIPELINE_CRON` wins; otherwise the
+ * legacy daily `SCHEDULED_PIPELINE_HOUR` is translated to cron.
  */
-function computeNextUtcDate(localHour: number, timeZone: string): Date {
-  const previousTz = process.env.TZ;
-  const needsSwap = previousTz !== timeZone;
-  if (needsSwap) process.env.TZ = timeZone;
-  try {
-    const now = new Date();
-    const next = new Date(now);
-    next.setHours(localHour, 0, 0, 0);
-    if (next.getTime() <= now.getTime()) {
-      next.setDate(next.getDate() + 1);
-    }
-    return new Date(next.toISOString());
-  } finally {
-    if (needsSwap) process.env.TZ = previousTz;
+export function resolveScheduledCron(env: NodeJS.ProcessEnv = process.env): {
+  cron: string;
+  timezone: string;
+} {
+  const timezone = env[`${ENV_PREFIX}_TIMEZONE`] ?? "America/Tijuana";
+  const raw = env[`${ENV_PREFIX}_CRON`]?.trim();
+  if (raw) return { cron: raw, timezone };
+  const hour = Number(env[`${ENV_PREFIX}_HOUR`] ?? "7");
+  const safeHour = Number.isInteger(hour) && hour >= 0 && hour <= 23 ? hour : 7;
+  return { cron: `0 ${safeHour} * * *`, timezone };
+}
+
+function createScheduleCron(cron: string, timezone: string): Cron {
+  // croner silently falls back on unknown zones — fail loudly instead.
+  new Intl.DateTimeFormat("en-US", { timeZone: timezone });
+  return new Cron(cron, { timezone });
+}
+
+export function getNextScheduledTick(args: {
+  cron: string;
+  timezone: string;
+  from?: Date;
+}): Date {
+  const next = createScheduleCron(args.cron, args.timezone).nextRun(args.from);
+  if (!next) throw new Error(`No next run for schedule "${args.cron}"`);
+  return next;
+}
+
+export function getPreviousScheduledTick(args: {
+  cron: string;
+  timezone: string;
+  from?: Date;
+}): Date | null {
+  const [previous] = createScheduleCron(args.cron, args.timezone).previousRuns(
+    1,
+    args.from,
+  );
+  return previous ?? null;
+}
+
+/**
+ * Startup decision: run only when no scheduled run covers the previous tick.
+ * Manual runs are invisible here (caller passes the latest *scheduled* run).
+ */
+export function shouldRunScheduledOnStartup(args: {
+  lastScheduledRun: PipelineRun | null;
+  previousTick: Date | null;
+}): { run: boolean; reason: string } {
+  const { lastScheduledRun, previousTick } = args;
+  if (!previousTick) return { run: true, reason: "no-previous-tick" };
+  if (!lastScheduledRun) return { run: true, reason: "no-scheduled-run-yet" };
+  if (new Date(lastScheduledRun.startedAt) < previousTick) {
+    return { run: true, reason: "missed-tick" };
   }
+  if (lastScheduledRun.status === "failed") {
+    return { run: true, reason: "retry-failed" };
+  }
+  if (lastScheduledRun.status === "running") {
+    // Stale "running" row means the process died mid-run before restart.
+    return { run: true, reason: "retry-interrupted" };
+  }
+  return { run: false, reason: "already-ran" };
 }
 
 async function executeScheduledRun(): Promise<void> {
@@ -93,7 +152,7 @@ async function executeScheduledRun(): Promise<void> {
     locationIntent,
   };
 
-  const result = await runPipeline(pipelineConfig);
+  const result = await runPipeline(pipelineConfig, { trigger: "scheduled" });
   if (result.success) {
     logger.info("Scheduled pipeline run completed", {
       jobsDiscovered: result.jobsDiscovered,
@@ -107,42 +166,64 @@ async function executeScheduledRun(): Promise<void> {
   }
 }
 
-async function checkAndRunOnStartup(): Promise<void> {
-  const todayRun = await pipelineRepo.getLatestPipelineRunToday();
-  if (!todayRun) {
-    logger.info("No pipeline run today — running now");
-    await executeScheduledRun();
-  } else if (todayRun.status === "failed") {
-    logger.info("Today's pipeline run failed — retrying now", {
-      runId: todayRun.id,
+async function checkAndRunOnStartup(schedule: {
+  cron: string;
+  timezone: string;
+}): Promise<void> {
+  const previousTick = getPreviousScheduledTick(schedule);
+  const lastScheduledRun = await pipelineRepo.getLatestScheduledPipelineRun();
+  const decision = shouldRunScheduledOnStartup({
+    lastScheduledRun,
+    previousTick,
+  });
+  if (!decision.run) {
+    logger.info("Skipping startup run — scheduled run already ran", {
+      reason: decision.reason,
+      runId: lastScheduledRun?.id,
+      status: lastScheduledRun?.status,
     });
-    await executeScheduledRun();
-  } else {
-    logger.info("Skipping startup run — pipeline already ran today", {
-      status: todayRun.status,
-      runId: todayRun.id,
-    });
+    return;
   }
+  logger.info("Running scheduled pipeline on startup", {
+    reason: decision.reason,
+  });
+  await executeScheduledRun();
 }
 
-function scheduleNextRun(): void {
+function scheduleNextRun(schedule: { cron: string; timezone: string }): void {
   clearScheduledRun();
 
-  const hour = Number(process.env[`${ENV_PREFIX}_HOUR`] ?? "7");
-  const timeZone = process.env[`${ENV_PREFIX}_TIMEZONE`] ?? "America/Tijuana";
-  const nextRun = computeNextUtcDate(hour, timeZone);
+  let nextRun: Date;
+  try {
+    nextRun = getNextScheduledTick(schedule);
+  } catch (error) {
+    logger.error("Invalid scheduled pipeline cron — scheduler disabled", {
+      cron: schedule.cron,
+      timezone: schedule.timezone,
+      error,
+    });
+    return;
+  }
   const delay = nextRun.getTime() - Date.now();
 
   logger.info("Scheduled pipeline run", {
     nextRun: nextRun.toISOString(),
-    localTime: `${hour}:00`,
-    timeZone,
+    cron: schedule.cron,
+    timeZone: schedule.timezone,
   });
 
-  state.timer = setTimeout(async () => {
-    await executeScheduledRun();
-    scheduleNextRun();
-  }, delay);
+  // ponytail: clamp to max setTimeout delay; distant ticks re-arm instead of overflowing.
+  state.timer = setTimeout(
+    async () => {
+      if (nextRun.getTime() - Date.now() > 0) {
+        scheduleNextRun(schedule);
+        return;
+      }
+      await executeScheduledRun();
+      scheduleNextRun(schedule);
+    },
+    Math.min(Math.max(delay, 0), MAX_TIMEOUT_MS),
+  );
 }
 
 /**
@@ -163,15 +244,29 @@ export async function initializeScheduledPipelineRun(): Promise<void> {
     return;
   }
 
+  let schedule: { cron: string; timezone: string };
+  try {
+    schedule = resolveScheduledCron(process.env);
+    getNextScheduledTick(schedule);
+  } catch (error) {
+    logger.error("Invalid scheduled pipeline cron — scheduler disabled", {
+      cron: process.env[`${ENV_PREFIX}_CRON`],
+      error,
+    });
+    return;
+  }
+
   logger.info("Initializing scheduled pipeline runner", {
     savedSearchName,
     tenantId,
     userId,
+    cron: schedule.cron,
+    timezone: schedule.timezone,
   });
 
   // Wrap all operations in the correct tenant/user context.
   await runWithRequestContext({ tenantId, userId }, async () => {
-    await checkAndRunOnStartup();
-    scheduleNextRun();
+    await checkAndRunOnStartup(schedule);
+    scheduleNextRun(schedule);
   });
 }
