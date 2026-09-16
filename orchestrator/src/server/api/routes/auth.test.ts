@@ -566,6 +566,62 @@ describe.sequential("Auth routes", () => {
     });
   });
 
+  describe("cookie session (cross-tab)", () => {
+    beforeEach(async () => {
+      ({ server, baseUrl, closeDb, tempDir } = await startServer({
+        env: AUTH_ENV,
+      }));
+    });
+
+    it("sets an HttpOnly session cookie on login and accepts it without a Bearer header", async () => {
+      const loginRes = await fetch(`${baseUrl}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: "admin", password: "secret" }),
+      });
+      expect(loginRes.status).toBe(200);
+      const setCookie = loginRes.headers.get("set-cookie") ?? "";
+      expect(setCookie).toContain("jobops.session=");
+      expect(setCookie).toContain("HttpOnly");
+      expect(setCookie).toContain("SameSite=Lax");
+      const cookie = setCookie.split(";")[0] ?? "";
+
+      const meRes = await fetch(`${baseUrl}/api/auth/me`, {
+        headers: { Cookie: cookie },
+      });
+      expect(meRes.status).toBe(200);
+
+      const protectedRes = await fetch(`${baseUrl}/api/settings`, {
+        headers: { Cookie: cookie },
+      });
+      expect(protectedRes.status).not.toBe(401);
+    });
+
+    it("logs out via cookie alone and clears the cookie", async () => {
+      const loginRes = await fetch(`${baseUrl}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: "admin", password: "secret" }),
+      });
+      const setCookie = loginRes.headers.get("set-cookie") ?? "";
+      const cookie = setCookie.split(";")[0] ?? "";
+
+      const logoutRes = await fetch(`${baseUrl}/api/auth/logout`, {
+        method: "POST",
+        headers: { Cookie: cookie },
+      });
+      expect(logoutRes.status).toBe(200);
+      expect(logoutRes.headers.get("set-cookie") ?? "").toContain(
+        "jobops.session=",
+      );
+
+      const after = await fetch(`${baseUrl}/api/settings`, {
+        headers: { Cookie: cookie },
+      });
+      expect(after.status).toBe(401);
+    });
+  });
+
   describe("backward compatibility", () => {
     beforeEach(async () => {
       ({ server, baseUrl, closeDb, tempDir } = await startServer({

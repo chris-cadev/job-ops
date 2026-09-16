@@ -67,6 +67,7 @@ export async function setupFirstAdmin(input: {
   const res = await fetch("/api/auth/setup", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify(input),
   });
   const parsed = await readAuthResponse<{
@@ -98,6 +99,7 @@ export async function signupWithCredentials(input: {
   const res = await fetch("/api/auth/signup", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify(input),
   });
   const parsed = await readAuthResponse<{
@@ -146,15 +148,14 @@ export async function logout(
   options: { redirect?: boolean } = {},
 ): Promise<void> {
   const authHeader = getCachedAuthHeader();
-  if (authHeader) {
-    try {
-      await fetch("/api/auth/logout", {
-        method: "POST",
-        headers: { Authorization: authHeader },
-      });
-    } catch {
-      // Best-effort server-side invalidation.
-    }
+  try {
+    await fetch("/api/auth/logout", {
+      method: "POST",
+      headers: authHeader ? { Authorization: authHeader } : undefined,
+      credentials: "include",
+    });
+  } catch {
+    // Best-effort server-side invalidation.
   }
   clearAuthSession();
   if (options.redirect ?? true) {

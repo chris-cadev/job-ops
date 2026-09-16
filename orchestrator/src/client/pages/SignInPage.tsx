@@ -1,5 +1,6 @@
 import {
   getAuthBootstrapStatus,
+  getCurrentAuthContext,
   hasAuthenticatedSession,
   restoreAuthSessionFromLegacyCredentials,
   setupFirstAdmin,
@@ -75,6 +76,16 @@ export function SignInPage() {
         if (restored || hasAuthenticatedSession()) {
           navigate(nextPath, { replace: true });
           return;
+        }
+        // New tab has no sessionStorage token but may have the httpOnly
+        // session cookie. Probe /me (cookie-authenticated) before showing login.
+        try {
+          await getCurrentAuthContext();
+          if (cancelled) return;
+          navigate(nextPath, { replace: true });
+          return;
+        } catch {
+          // No cookie session — stay on sign-in.
         }
       } finally {
         if (!cancelled) {

@@ -7,6 +7,9 @@ vi.mock("@client/api", () => ({
   getAuthBootstrapStatus: vi.fn(async () => ({
     setupRequired: false,
   })),
+  getCurrentAuthContext: vi.fn(async () => {
+    throw new Error("Authentication required");
+  }),
   hasAuthenticatedSession: vi.fn(() => false),
   restoreAuthSessionFromLegacyCredentials: vi.fn(async () => false),
   setupFirstAdmin: vi.fn(async () => ({
@@ -25,6 +28,7 @@ vi.mock("@client/api", () => ({
 
 import {
   getAuthBootstrapStatus,
+  getCurrentAuthContext,
   hasAuthenticatedSession,
   restoreAuthSessionFromLegacyCredentials,
   setupFirstAdmin,
@@ -40,6 +44,9 @@ describe("SignInPage", () => {
     });
     vi.mocked(hasAuthenticatedSession).mockReturnValue(false);
     vi.mocked(restoreAuthSessionFromLegacyCredentials).mockResolvedValue(false);
+    vi.mocked(getCurrentAuthContext).mockRejectedValue(
+      new Error("Authentication required"),
+    );
     const authUser = {
       id: "user-1",
       username: "admin",

@@ -19,6 +19,7 @@ import {
 import { logger } from "@infra/logger";
 import { runWithRequestContext } from "@infra/request-context";
 import { sanitizeUnknown } from "@infra/sanitize";
+import { getRequestAuthToken } from "@server/auth/cookies";
 import { verifyToken } from "@server/auth/jwt";
 import { getJobOpsAppConfig } from "@server/config/app-mode";
 import { isDemoMode } from "@server/config/demo";
@@ -168,9 +169,8 @@ export function createAuthGuard() {
     username: string;
     isSystemAdmin: boolean;
   } | null> {
-    const authHeader = req.headers.authorization || "";
-    if (!authHeader.startsWith("Bearer ")) return null;
-    const token = authHeader.slice("Bearer ".length).trim();
+    const token = getRequestAuthToken(req);
+    if (!token) return null;
     try {
       const payload = await verifyToken(token);
       const user = await usersRepo.getUserById(payload.userId);

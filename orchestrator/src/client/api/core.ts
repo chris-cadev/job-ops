@@ -216,6 +216,7 @@ export async function performLoginWithCredentials(
   const res = await fetch("/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify({ username, password }),
   });
 
@@ -300,6 +301,7 @@ async function fetchAndParse<T>(
   if (authHeader) headers.Authorization = authHeader;
   const response = await fetch(`/api${endpoint}`, {
     ...options,
+    credentials: "include",
     headers,
   });
 
@@ -389,6 +391,7 @@ export async function fetchBlobApi(
     if (authHeader) headers.Authorization = authHeader;
     const response = await fetch(`/api${endpoint}`, {
       ...options,
+      credentials: "include",
       headers,
     });
 
@@ -447,6 +450,7 @@ export async function streamSseEvents<TEvent>(
   let response = await fetch(`/api${endpoint}`, {
     method: "POST",
     headers,
+    credentials: "include",
     body: JSON.stringify(input),
     signal: handlers.signal,
   });
@@ -460,6 +464,7 @@ export async function streamSseEvents<TEvent>(
           ...headers,
           Authorization: recoveredAuthHeader,
         },
+        credentials: "include",
         body: JSON.stringify(input),
         signal: handlers.signal,
       });

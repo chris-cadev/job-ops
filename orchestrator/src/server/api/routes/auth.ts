@@ -7,6 +7,11 @@ import {
 } from "@infra/errors";
 import { asyncRoute, fail, ok } from "@infra/http";
 import { blacklistToken, signToken, verifyToken } from "@server/auth/jwt";
+import {
+  clearAuthCookie,
+  getRequestAuthToken,
+  setAuthCookie,
+} from "@server/auth/cookies";
 import { verifyPassword } from "@server/auth/password";
 import { getJobOpsAppConfig } from "@server/config/app-mode";
 import { isDemoMode } from "@server/config/demo";
@@ -124,6 +129,7 @@ authRouter.post(
       isSystemAdmin: user.isSystemAdmin,
     });
 
+    setAuthCookie(res, token, expiresIn);
     ok(res, { token, expiresIn, user }, 201);
   }),
 );
@@ -181,6 +187,7 @@ authRouter.post(
       return;
     }
 
+    setAuthCookie(res, token, expiresIn);
     ok(res, { token, expiresIn });
   }),
 );
@@ -248,6 +255,7 @@ authRouter.post(
       isSystemAdmin: user.isSystemAdmin,
     });
 
+    setAuthCookie(res, token, expiresIn);
     ok(res, { token, expiresIn, user }, 201);
   }),
 );
@@ -255,12 +263,11 @@ authRouter.post(
 authRouter.get(
   "/me",
   asyncRoute(async (req: Request, res: Response) => {
-    const authHeader = req.headers.authorization || "";
-    if (!authHeader.startsWith("Bearer ")) {
+    const token = getRequestAuthToken(req);
+    if (!token) {
       fail(res, unauthorized("Authentication required"));
       return;
     }
-    const token = authHeader.slice("Bearer ".length).trim();
     const payload = await verifyToken(token);
     const user = await usersRepo.getUserById(payload.userId);
     if (!user || user.isDisabled) {
@@ -278,9 +285,8 @@ authRouter.get(
 authRouter.post(
   "/logout",
   asyncRoute(async (req: Request, res: Response) => {
-    const authHeader = req.headers.authorization || "";
-    if (authHeader.startsWith("Bearer ")) {
-      const token = authHeader.slice("Bearer ".length).trim();
+    const token = getRequestAuthToken(req);
+    if (token) {
       try {
         const { jti } = await verifyToken(token);
         await blacklistToken(jti);
@@ -288,6 +294,7 @@ authRouter.post(
         // Token already invalid — logout is idempotent.
       }
     }
+    clearAuthCookie(res);
     ok(res, { message: "Logged out" });
   }),
 );

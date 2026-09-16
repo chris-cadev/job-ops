@@ -64,6 +64,7 @@ export function subscribeToEventSource<T>(
       try {
         const response = await fetch(url, {
           headers: authHeader ? { Authorization: authHeader } : undefined,
+          credentials: "include",
           signal: controller.signal,
         });
 
