@@ -815,6 +815,23 @@ export async function getUnscoredDiscoveredJobs(
 }
 
 /**
+ * Get all discovered jobs (regardless of suitability score).
+ * Used by the target filter: status alone defines the subset.
+ */
+export async function getDiscoveredJobs(limit?: number): Promise<Job[]> {
+  const tenantId = getActiveTenantId();
+  const query = db
+    .select()
+    .from(jobs)
+    .where(and(eq(jobs.tenantId, tenantId), eq(jobs.status, "discovered")))
+    .orderBy(desc(jobs.discoveredAt));
+
+  const rows =
+    typeof limit === "number" ? await query.limit(limit) : await query;
+  return rows.map(mapRowToJob);
+}
+
+/**
  * Delete jobs by status.
  */
 export async function deleteJobsByStatus(status: JobStatus): Promise<number> {

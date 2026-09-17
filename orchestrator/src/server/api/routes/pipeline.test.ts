@@ -313,6 +313,7 @@ describe.sequential("Pipeline API routes", () => {
         enableScoring: true,
         enableImporting: true,
         enableAutoTailoring: true,
+        enableCvTailoring: false,
       },
       effectiveConfig: {
         country: "united states",

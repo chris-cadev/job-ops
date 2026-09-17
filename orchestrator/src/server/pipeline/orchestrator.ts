@@ -7,55 +7,52 @@
  * 3. Leave all jobs in "discovered" for manual processing
  */
 
-import {
-  mkdir,
-  writeFile,
-} from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 
-import type { AppErrorCode } from '@infra/errors';
-import { logger } from '@infra/logger';
-import { trackServerProductEvent } from '@infra/product-analytics';
-import { runWithRequestContext } from '@infra/request-context';
-import { getActiveTenantId } from '@server/tenancy/context';
-import {
-  createLocationIntentFromLegacyInputs,
-} from '@shared/location-domain.js';
+import type { AppErrorCode } from "@infra/errors";
+import { logger } from "@infra/logger";
+import { trackServerProductEvent } from "@infra/product-analytics";
+import { runWithRequestContext } from "@infra/request-context";
+import { getActiveTenantId } from "@server/tenancy/context";
+import { createLocationIntentFromLegacyInputs } from "@shared/location-domain.js";
 import type {
   JobStatus,
   PipelineConfig,
   PipelineRunSavedDetails,
   PipelineRunTrigger,
-} from '@shared/types';
+} from "@shared/types";
 
-import { getDataDir } from '../config/dataDir';
-import * as jobsRepo from '../repositories/jobs';
-import * as pipelineRepo from '../repositories/pipeline';
-import * as settingsRepo from '../repositories/settings';
-import { generatePdf } from '../services/pdf';
+import { getDataDir } from "../config/dataDir";
+import * as jobsRepo from "../repositories/jobs";
+import * as pipelineRepo from "../repositories/pipeline";
+import * as settingsRepo from "../repositories/settings";
+import { generatePdf } from "../services/pdf";
 import {
   createJobPdfFingerprint,
   resolvePdfFingerprintContext,
-} from '../services/pdf-fingerprint';
-import { getProfile } from '../services/profile';
-import { pickProjectIdsForJob } from '../services/projectSelection';
+} from "../services/pdf-fingerprint";
+import { getProfile } from "../services/profile";
+import { pickProjectIdsForJob } from "../services/projectSelection";
+import { resolveCvTailoringConfig } from "../services/cv-tailoring-bridge";
 import {
   extractProjectsFromProfile,
   resolveResumeProjectsSettings,
-} from '../services/resumeProjects';
-import { generateTailoring } from '../services/summary';
+} from "../services/resumeProjects";
+import { generateTailoring } from "../services/summary";
 import {
   type PendingChallenge,
   progressHelpers,
   resetProgress,
-} from './progress';
+} from "./progress";
 import {
   buildPipelineRunSavedDetails,
   createPipelineRunResultSummary,
   updatePipelineRunResultSummary,
-} from './run-details';
+} from "./run-details";
 import {
   discoverJobsStep,
+  filterNonTargetStep,
   importJobsStep,
   loadProfileStep,
   notifyPipelineWebhookStep,
@@ -63,7 +60,8 @@ import {
   retryFailedScoringJobs,
   scoreJobsStep,
   selectJobsStep,
-} from './steps';
+  tailorCvsStep,
+} from "./steps";
 
 const DEFAULT_CONFIG: PipelineConfig = {
   topN: 10,
@@ -408,7 +406,11 @@ export async function runPipeline(
           .replace(/^-+|-+$/g, "");
         try {
           await mkdir(jdDir, { recursive: true });
-          await writeFile(join(jdDir, `${slug}.md`), job.jobDescription, "utf-8");
+          await writeFile(
+            join(jdDir, `${slug}.md`),
+            job.jobDescription,
+            "utf-8",
+          );
         } catch (err) {
           logger.warn("Failed to write job description markdown", {
             slug,
@@ -424,6 +426,18 @@ export async function runPipeline(
       await persistResultSummary({ stage: "import" });
       await pipelineRepo.updatePipelineRun(pipelineRun.id, {
         jobsDiscovered,
+      });
+
+      // --- Target filter: skip off-target jobs (daily, persisted in settings) ---
+      ensureNotCancelled(tenantId);
+      const targetFilter = await filterNonTargetStep({
+        pipelineRunId: pipelineRun.id,
+        shouldCancel: () =>
+          getPipelineState(tenantId).cancelRequestedAt !== null,
+      });
+      pipelineLogger.info("Target filter completed", {
+        checked: targetFilter.checked,
+        skipped: targetFilter.skipped,
       });
 
       let unprocessedJobs: import("@shared/types").Job[] = [];
@@ -518,6 +532,20 @@ export async function runPipeline(
           getPipelineState(tenantId).cancelRequestedAt !== null,
       });
       jobsProcessed = processedCount;
+
+      // --- CV tailoring fan-out/fan-in (opt-in; every discovered job) ---
+      ensureNotCancelled(tenantId);
+      const cvConfig = await resolveCvTailoringConfig(
+        mergedConfig.enableCvTailoring,
+      );
+      if (cvConfig) {
+        const cvResult = await tailorCvsStep({
+          config: cvConfig,
+          shouldCancel: () =>
+            getPipelineState(tenantId).cancelRequestedAt !== null,
+        });
+        pipelineLogger.info("CV tailoring fan-in completed", { ...cvResult });
+      }
 
       resultSummary = updatePipelineRunResultSummary(resultSummary, {
         stage: "completed",

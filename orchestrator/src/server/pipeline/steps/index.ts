@@ -1,8 +1,10 @@
 export { discoverJobsStep } from "./discover-jobs";
+export { filterNonTargetStep } from "./filter-non-target";
 export { importJobsStep } from "./import-jobs";
 export { loadProfileStep } from "./load-profile";
 export { notifyPipelineWebhookStep } from "./notify-webhook";
 export { processJobsStep } from "./process-jobs";
 export { retryFailedScoringJobs, scoreJobsStep } from "./score-jobs";
 export { selectJobsStep } from "./select-jobs";
+export { tailorCvsStep } from "./tailor-cvs";
 export type { RunPipelineContext, ScoredJob } from "./types";

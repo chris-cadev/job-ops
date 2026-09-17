@@ -17,6 +17,8 @@ export interface PipelineConfig {
   enableScoring?: boolean;
   enableImporting?: boolean;
   enableAutoTailoring?: boolean;
+  /** Fan-out to external cv-tailoring scripts, then fan-in before completion. */
+  enableCvTailoring?: boolean;
 }
 
 export type PipelineRunTrigger = "manual" | "scheduled";
@@ -59,6 +61,7 @@ export interface PipelineRunRequestedConfig {
   enableScoring: boolean;
   enableImporting: boolean;
   enableAutoTailoring: boolean;
+  enableCvTailoring: boolean;
 }
 
 export interface PipelineRunSourceLimitSnapshot {

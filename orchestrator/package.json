@@ -25,6 +25,8 @@
     "db:clear": "tsx src/server/db/clear.ts",
     "db:drop": "tsx src/server/db/clear.ts --drop",
     "pipeline:run": "tsx src/server/pipeline/run.ts",
+    "filter:target": "tsx src/server/pipeline/run-target-filter.ts",
+    "filter:discovered": "tsx src/server/pipeline/run-target-filter.ts",
     "jd-sync": "tsx src/server/cli/jd-sync.ts",
     "cli": "tsx src/cli/index.ts",
     "test": "vitest",

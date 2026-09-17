@@ -793,6 +793,32 @@ export const settingsRegistry = {
       return value === null || value === undefined ? null : String(value);
     },
   },
+  cvTailoringEnabled: {
+    kind: "typed" as const,
+    schema: z.boolean(),
+    default: (): boolean => false,
+    parse: parseBitBoolOrNull,
+    serialize: serializeBitBool,
+  },
+  cvTailoringConcurrency: {
+    kind: "typed" as const,
+    schema: z.number().int().min(1).max(10),
+    default: (): number => 2,
+    parse: parseIntOrNull,
+    serialize: serializeNullableNumber,
+  },
+  cvTailoringRepoPath: {
+    kind: "string" as const,
+    envKey: "CV_TAILORING_REPO_PATH",
+    schema: z.string().trim().max(500),
+  },
+  cvTailoringTimeoutSec: {
+    kind: "typed" as const,
+    schema: z.number().int().min(60).max(3600),
+    default: (): number => 420,
+    parse: parseIntOrNull,
+    serialize: serializeNullableNumber,
+  },
 
   // --- Model Variants ---
   modelScorer: {
@@ -872,6 +898,15 @@ export const settingsRegistry = {
     kind: "secret" as const,
     envKey: "WEBHOOK_SECRET",
     schema: z.string().trim().max(2000),
+  },
+
+  targetFilterState: {
+    kind: "typed" as const,
+    schema: z.string().trim().max(4000),
+    default: (): string => "",
+    parse: parseNonEmptyStringOrNull,
+    serialize: (value: string | null | undefined): string | null =>
+      value ?? null,
   },
 
   // --- Aliases ---

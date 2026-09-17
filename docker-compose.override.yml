@@ -1,0 +1,23 @@
+# Local-only hot-sync for the cron scheduler change (SCHEDULED_PIPELINE_CRON)
+# plus the daily target filter (off-target skip) sources.
+# The full image rebuild is currently blocked by deb.debian.org access from
+# the Docker build network, so these mounts overlay the new sources onto the
+# existing image. Safe to delete once `docker compose up -d --build`
+# succeeds again.
+services:
+  job-ops:
+    volumes:
+      - ./orchestrator/src/server/services/scheduled-pipeline-run.ts:/app/orchestrator/src/server/services/scheduled-pipeline-run.ts:ro
+      - ./orchestrator/src/server/repositories/pipeline.ts:/app/orchestrator/src/server/repositories/pipeline.ts:ro
+      - ./orchestrator/src/server/pipeline/orchestrator.ts:/app/orchestrator/src/server/pipeline/orchestrator.ts:ro
+      - ./orchestrator/src/server/repositories/jobs.ts:/app/orchestrator/src/server/repositories/jobs.ts:ro
+      - ./orchestrator/src/server/api/routes/pipeline.ts:/app/orchestrator/src/server/api/routes/pipeline.ts:ro
+      - ./shared/src/types/pipeline.ts:/app/shared/src/types/pipeline.ts:ro
+      - ./node_modules/croner:/app/node_modules/croner:ro
+      # Target filter (no new npm deps, so no rebuild needed).
+      - ./orchestrator/src/server/services/target-filter:/app/orchestrator/src/server/services/target-filter:ro
+      - ./orchestrator/src/server/pipeline/steps/filter-non-target.ts:/app/orchestrator/src/server/pipeline/steps/filter-non-target.ts:ro
+      - ./orchestrator/src/server/pipeline/steps/index.ts:/app/orchestrator/src/server/pipeline/steps/index.ts:ro
+      - ./orchestrator/src/server/pipeline/run-target-filter.ts:/app/orchestrator/src/server/pipeline/run-target-filter.ts:ro
+      - ./shared/src/settings-registry.ts:/app/shared/src/settings-registry.ts:ro
+      - ./orchestrator/package.json:/app/orchestrator/package.json:ro

@@ -67,6 +67,7 @@ export async function simulatePipelineRun(
     enableScoring: config?.enableScoring ?? true,
     enableImporting: config?.enableImporting ?? true,
     enableAutoTailoring: config?.enableAutoTailoring ?? true,
+    enableCvTailoring: config?.enableCvTailoring ?? false,
   };
   const savedDetails = await buildPipelineRunSavedDetails(mergedConfig).catch(
     () => null,

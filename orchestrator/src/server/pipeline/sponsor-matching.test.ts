@@ -24,6 +24,7 @@ vi.mock("../services/scorer", () => ({
 vi.mock("../repositories/jobs", () => ({
   updateJob: vi.fn(),
   getUnscoredDiscoveredJobs: vi.fn(),
+  getDiscoveredJobs: vi.fn(),
   getJobById: vi.fn(),
   createJobs: vi.fn(),
   getAllJobUrls: vi.fn(),
@@ -65,6 +66,7 @@ describe("Sponsor Match Calculation", () => {
   let scoreJobSuitability: ReturnType<typeof vi.fn>;
   let updateJob: ReturnType<typeof vi.fn>;
   let getUnscoredDiscoveredJobs: ReturnType<typeof vi.fn>;
+  let getDiscoveredJobs: ReturnType<typeof vi.fn>;
   let createJobs: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
@@ -84,11 +86,14 @@ describe("Sponsor Match Calculation", () => {
     updateJob = jobsRepo.updateJob as ReturnType<typeof vi.fn>;
     getUnscoredDiscoveredJobs =
       jobsRepo.getUnscoredDiscoveredJobs as ReturnType<typeof vi.fn>;
+    getDiscoveredJobs = jobsRepo.getDiscoveredJobs as ReturnType<typeof vi.fn>;
     createJobs = jobsRepo.createJobs as ReturnType<typeof vi.fn>;
 
     // Default mock implementations
     scoreJobSuitability.mockResolvedValue({ score: 75, reason: "Good match" });
     createJobs.mockResolvedValue({ created: 0, skipped: 0 });
+    // Target filter finds nothing by default so scoring assertions hold.
+    getDiscoveredJobs.mockResolvedValue([]);
     updateJob.mockResolvedValue(undefined);
 
     calculateSponsorMatchSummary.mockImplementation((results: any[]) => {

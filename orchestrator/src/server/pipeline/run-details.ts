@@ -44,6 +44,7 @@ export function buildRequestedConfigSnapshot(
     enableScoring: config.enableScoring !== false,
     enableImporting: config.enableImporting !== false,
     enableAutoTailoring: config.enableAutoTailoring !== false,
+    enableCvTailoring: config.enableCvTailoring === true,
   };
 }
 

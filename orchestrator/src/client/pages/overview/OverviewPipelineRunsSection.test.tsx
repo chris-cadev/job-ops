@@ -84,6 +84,7 @@ describe("OverviewPipelineRunsSection", () => {
           enableScoring: true,
           enableImporting: true,
           enableAutoTailoring: false,
+          enableCvTailoring: false,
         },
         effectiveConfig: {
           country: "united states",

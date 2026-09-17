@@ -18,6 +18,8 @@ async function main() {
   const result = await runPipeline({
     topN: parseInt(process.env.PIPELINE_TOP_N || "10", 10),
     minSuitabilityScore: parseInt(process.env.PIPELINE_MIN_SCORE || "50", 10),
+    enableCvTailoring:
+      process.env.PIPELINE_ENABLE_CV_TAILORING === "1" ? true : undefined,
   });
 
   console.log(`\n${"=".repeat(60)}`);
