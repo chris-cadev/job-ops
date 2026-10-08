@@ -115,6 +115,38 @@ export function shouldRunScheduledOnStartup(args: {
   return { run: false, reason: "already-ran" };
 }
 
+/**
+ * Tick-time single flight: fire unless this window was already covered.
+ *
+ * Distinct from startup: a completed run that started *at* previousTick is
+ * the previous window and must NOT block the current tick. A run that started
+ * *after* previousTick (boot catch-up before the evening tick) already covers
+ * this window and must block a duplicate.
+ */
+export function shouldRunScheduledOnTick(args: {
+  lastScheduledRun: PipelineRun | null;
+  previousTick: Date | null;
+}): { run: boolean; reason: string } {
+  const { lastScheduledRun, previousTick } = args;
+  if (!previousTick) return { run: true, reason: "no-previous-tick" };
+  if (!lastScheduledRun) return { run: true, reason: "no-scheduled-run-yet" };
+
+  const startedAt = new Date(lastScheduledRun.startedAt);
+  if (startedAt > previousTick) {
+    if (lastScheduledRun.status === "running") {
+      return { run: false, reason: "already-running-this-window" };
+    }
+    if (
+      lastScheduledRun.status === "completed" ||
+      lastScheduledRun.status === "cancelled"
+    ) {
+      return { run: false, reason: "already-ran-this-window" };
+    }
+    return { run: true, reason: "retry-failed-this-window" };
+  }
+  return { run: true, reason: "tick-due" };
+}
+
 async function executeScheduledRun(): Promise<void> {
   const savedSearchName = process.env[`${ENV_PREFIX}_SEARCH_NAME`];
   if (!savedSearchName) return;
@@ -212,6 +244,9 @@ function scheduleNextRun(schedule: { cron: string; timezone: string }): void {
     timeZone: schedule.timezone,
   });
 
+  const tenantId = process.env[`${ENV_PREFIX}_TENANT_ID`]?.trim();
+  const userId = process.env[`${ENV_PREFIX}_USER_ID`]?.trim();
+
   // ponytail: clamp to max setTimeout delay; distant ticks re-arm instead of overflowing.
   state.timer = setTimeout(
     async () => {
@@ -219,7 +254,39 @@ function scheduleNextRun(schedule: { cron: string; timezone: string }): void {
         scheduleNextRun(schedule);
         return;
       }
-      await executeScheduledRun();
+      // Tick-time single flight: skip when catch-up already covered this window.
+      const tickContext = { tenantId, userId };
+      const runTick = async () => {
+        const previousTick = getPreviousScheduledTick({
+          ...schedule,
+          from: nextRun,
+        });
+        const lastScheduledRun =
+          await pipelineRepo.getLatestScheduledPipelineRun();
+        const decision = shouldRunScheduledOnTick({
+          lastScheduledRun,
+          previousTick,
+        });
+        if (!decision.run) {
+          logger.info("Skipping scheduled tick — window already covered", {
+            reason: decision.reason,
+            runId: lastScheduledRun?.id,
+            status: lastScheduledRun?.status,
+            tick: nextRun.toISOString(),
+          });
+          return;
+        }
+        logger.info("Running scheduled pipeline on tick", {
+          reason: decision.reason,
+          tick: nextRun.toISOString(),
+        });
+        await executeScheduledRun();
+      };
+      if (tenantId && userId) {
+        await runWithRequestContext(tickContext, runTick);
+      } else {
+        await runTick();
+      }
       scheduleNextRun(schedule);
     },
     Math.min(Math.max(delay, 0), MAX_TIMEOUT_MS),

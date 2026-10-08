@@ -146,7 +146,7 @@ flowchart TD
   F --> G["allSettled join<br/>counts logged, never throws"]
 ```
 
-1. Configure the bridge: set `CV_TAILORING_REPO_PATH` (or the `cvTailoringRepoPath` setting) to the cv-tailoring checkout. Without it the phase warns and skips; the pipeline still completes.
+1. Configure the bridge: set `CV_TAILORING_REPO_PATH` (or the `cvTailoringRepoPath` setting) to the cv-tailoring checkout. Without it the phase warns and skips; the pipeline still completes. docker-compose mounts the full repo at `/cv-tailoring` (not only the JD folder).
 2. Tune load with `cvTailoringConcurrency` (default 2) and `cvTailoringTimeoutSec` (default 420, passed as `generate-cv.py --timeout`).
 3. Each job gets one `Tailored CVs (cv-tailoring)` note; re-runs append new Doc URL lines instead of creating new notes, and skip regeneration when the URL is already present unless forced.
 4. The published Doc is exported to PDF and uploaded through the same path as `POST /api/jobs/:id/pdf`, so `discovered` jobs are promoted to `ready`.

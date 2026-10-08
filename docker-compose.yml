@@ -20,6 +20,8 @@ services:
       - codex-home:/app/codex-home
       # Shared job-description markdown volume (same project name as cv-tailoring)
       - ../cv-tailoring/software-engineer/00-source-reference:/app/jds
+      # Full cv-tailoring repo for the CV tailoring bridge (ingest/generate/gdocs)
+      - ../cv-tailoring:/cv-tailoring
     environment:
       # Server config
       - NODE_ENV=production
@@ -30,14 +32,18 @@ services:
       # Codex runtime home (stores auth and config)
       - CODEX_HOME=/app/codex-home
 
+      # CV tailoring bridge — full repo path inside the container
+      - CV_TAILORING_REPO_PATH=${CV_TAILORING_REPO_PATH:-/cv-tailoring}
+
       # Reactive Resume (self-hosted) - points to the rxresume-app service on the Docker network
       - RXRESUME_URL=http://rxresume-app:3000
 
       # Scheduled pipeline runner (cron-scheduled saved search, Tijuana time)
+      # Fri/Sat/Sun/Mon 20:47 → 47 20 * * 1,5,6,0
       - SCHEDULED_PIPELINE_SEARCH_NAME=${SCHEDULED_PIPELINE_SEARCH_NAME:-}
       - SCHEDULED_PIPELINE_TENANT_ID=${SCHEDULED_PIPELINE_TENANT_ID:-}
       - SCHEDULED_PIPELINE_USER_ID=${SCHEDULED_PIPELINE_USER_ID:-}
-      - SCHEDULED_PIPELINE_CRON=${SCHEDULED_PIPELINE_CRON:-}
+      - SCHEDULED_PIPELINE_CRON=${SCHEDULED_PIPELINE_CRON:-47 20 * * 1,5,6,0}
       - SCHEDULED_PIPELINE_HOUR=${SCHEDULED_PIPELINE_HOUR:-7}
       - SCHEDULED_PIPELINE_TIMEZONE=${SCHEDULED_PIPELINE_TIMEZONE:-America/Tijuana}
 
