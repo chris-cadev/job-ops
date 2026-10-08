@@ -1,18 +1,21 @@
-import '../config/env';
+import "../config/env";
 
-import { existsSync } from 'node:fs';
-import {
-  mkdir,
-  writeFile,
-} from 'node:fs/promises';
-import { join } from 'node:path';
+import { existsSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 
-import { closeDb } from '../db/index';
-import { getJobsForProcessing } from '../repositories/jobs';
+import { closeDb } from "../db/index";
+import { getJobsForProcessing } from "../repositories/jobs";
 
 const jdDir = process.env.JD_OUTPUT_DIR ?? "/app/jds";
 
-const sanitize = (str: string) => str.replace(/[<>:"/\\|?*\x00-\x1F]/g, "").trim();
+const UNSAFE_FILENAME_CHARS = '<>:"/\\|?*';
+
+const sanitize = (str: string) =>
+  [...str]
+    .filter((ch) => ch >= " " && !UNSAFE_FILENAME_CHARS.includes(ch))
+    .join("")
+    .trim();
 
 function slug(employer: string, title: string): string {
   return sanitize(`JD - ${title} - ${employer}`);
@@ -41,7 +44,10 @@ async function main(): Promise<void> {
       await writeFile(filePath, job.jobDescription, "utf-8");
       written++;
     } catch (err) {
-      console.error(`Failed to write ${s}.md:`, err instanceof Error ? err.message : err);
+      console.error(
+        `Failed to write ${s}.md:`,
+        err instanceof Error ? err.message : err,
+      );
       errors++;
     }
   }

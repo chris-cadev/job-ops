@@ -57,19 +57,22 @@ function parseArgs(argv: string[]): ParsedArgs {
 
   // Parse command and subcommand (first two non-option tokens)
   while (i < tokens.length && !tokens[i]?.startsWith("-")) {
+    const token = tokens[i];
+    if (token === undefined) break;
     if (!command) {
-      command = tokens[i]!;
+      command = token;
     } else if (!subcommand) {
-      subcommand = tokens[i]!;
+      subcommand = token;
     } else {
-      args.push(tokens[i]!);
+      args.push(token);
     }
     i++;
   }
 
   // Parse options
   for (; i < tokens.length; i++) {
-    const token = tokens[i]!;
+    const token = tokens[i];
+    if (token === undefined) break;
     if (token.startsWith("--")) {
       const eqIndex = token.indexOf("=");
       if (eqIndex !== -1) {
@@ -81,7 +84,8 @@ function parseArgs(argv: string[]): ParsedArgs {
         const key = token.slice(2);
         if (i + 1 < tokens.length && !tokens[i + 1]?.startsWith("-")) {
           i++;
-          options[key] = tokens[i]!;
+          const value = tokens[i];
+          if (value !== undefined) options[key] = value;
         } else {
           options[key] = "true";
         }

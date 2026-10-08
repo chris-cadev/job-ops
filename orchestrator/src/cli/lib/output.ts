@@ -34,7 +34,7 @@ export function printTable(
     return;
   }
 
-  const keys = columns ?? Object.keys(rows[0]!);
+  const keys = columns ?? Object.keys(rows[0] ?? {});
   const colWidths = keys.map((key) =>
     Math.max(
       key.length,
@@ -43,14 +43,14 @@ export function printTable(
   );
 
   // Header
-  const header = keys.map((key, i) => key.padEnd(colWidths[i]!)).join("  ");
+  const header = keys.map((key, i) => key.padEnd(colWidths[i] ?? 0)).join("  ");
   console.log(header);
   console.log("-".repeat(header.length));
 
   // Rows
   for (const row of rows) {
     const line = keys
-      .map((key, i) => String(formatValue(row[key])).padEnd(colWidths[i]!))
+      .map((key, i) => String(formatValue(row[key])).padEnd(colWidths[i] ?? 0))
       .join("  ");
     console.log(line);
   }
