@@ -9,30 +9,38 @@
 // OpenCode loads this as a server plugin — add it to your opencode.json:
 //   { "plugin": ["@dietrichgebert/ponytail"] }
 
-import { createRequire } from 'module';
-import fs from 'fs';
-import os from 'os';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import fs from "node:fs";
+import { createRequire } from "node:module";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // The shared instruction builder is CommonJS; bridge to it from this ES module.
 const require = createRequire(import.meta.url);
-const { getPonytailInstructions } = require('../../hooks/ponytail-instructions');
-const { getDefaultMode, normalizePersistedMode } = require('../../hooks/ponytail-config');
+const {
+  getPonytailInstructions,
+} = require("../../hooks/ponytail-instructions");
+const {
+  getDefaultMode,
+  normalizePersistedMode,
+} = require("../../hooks/ponytail-config");
 
 // OpenCode has no flag-file convention of its own; keep mode beside its config.
 const statePath = path.join(
-  process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'),
-  'opencode',
-  '.ponytail-active',
+  process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"),
+  "opencode",
+  ".ponytail-active",
 );
 
 function readMode() {
   try {
-    return normalizePersistedMode(fs.readFileSync(statePath, 'utf8').trim()) || getDefaultMode();
-  } catch (e) {
+    return (
+      normalizePersistedMode(fs.readFileSync(statePath, "utf8").trim()) ||
+      getDefaultMode()
+    );
+  } catch {
     return getDefaultMode();
   }
 }
@@ -43,7 +51,7 @@ function writeMode(mode) {
 }
 
 export function parseCommandFile(filePath) {
-  const content = fs.readFileSync(filePath, 'utf8');
+  const content = fs.readFileSync(filePath, "utf8");
   // Tolerate CRLF: a Windows checkout (autocrlf) delivers \r\n, npm ships \n.
   const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
   if (!match) return null;
@@ -53,23 +61,27 @@ export function parseCommandFile(filePath) {
 
 export default async ({ client } = {}) => {
   const log = (level, message) => {
-    try { client && client.app && client.app.log({ body: { service: 'ponytail', level, message } }); } catch (e) {}
+    try {
+      client?.app?.log({ body: { service: "ponytail", level, message } });
+    } catch {}
   };
 
-  const ponytailSkillsDir = path.resolve(__dirname, '../../skills');
+  const ponytailSkillsDir = path.resolve(__dirname, "../../skills");
 
   return {
     // Register slash commands + skills directory.
     config: async (config) => {
       if (!config.command) config.command = {};
-      const commandDir = path.join(__dirname, '..', 'command');
+      const commandDir = path.join(__dirname, "..", "command");
       try {
-        for (const file of fs.readdirSync(commandDir).filter((f) => f.endsWith('.md'))) {
-          const name = path.basename(file, '.md');
+        for (const file of fs
+          .readdirSync(commandDir)
+          .filter((f) => f.endsWith(".md"))) {
+          const name = path.basename(file, ".md");
           const parsed = parseCommandFile(path.join(commandDir, file));
           if (parsed) config.command[name] = parsed;
         }
-      } catch (e) {}
+      } catch {}
 
       config.skills = config.skills || {};
       config.skills.paths = config.skills.paths || [];
@@ -79,9 +91,9 @@ export default async ({ client } = {}) => {
     },
 
     // Append the ruleset to the system prompt every turn.
-    'experimental.chat.system.transform': async (_input, output) => {
+    "experimental.chat.system.transform": async (_input, output) => {
       const mode = readMode();
-      if (mode === 'off') return;
+      if (mode === "off") return;
       output.system.push(getPonytailInstructions(mode));
     },
 
@@ -89,12 +101,14 @@ export default async ({ client } = {}) => {
     // ponytail: mode applies from the next message, not the current one — the
     // transform reads the flag the command writes. Good enough; switch to a
     // synchronous store if same-turn switching ever matters.
-    'command.execute.before': async (input) => {
-      if (!input || input.command !== 'ponytail') return;
+    "command.execute.before": async (input) => {
+      if (!input || input.command !== "ponytail") return;
       // `off` is persisted like any mode; the transform reads it and stays silent.
-      const mode = normalizePersistedMode((input.arguments || '').trim()) || getDefaultMode();
+      const mode =
+        normalizePersistedMode((input.arguments || "").trim()) ||
+        getDefaultMode();
       writeMode(mode);
-      log('info', 'ponytail ' + mode);
+      log("info", `ponytail ${mode}`);
     },
   };
 };

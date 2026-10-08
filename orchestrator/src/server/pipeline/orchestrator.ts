@@ -27,6 +27,7 @@ import { getDataDir } from "../config/dataDir";
 import * as jobsRepo from "../repositories/jobs";
 import * as pipelineRepo from "../repositories/pipeline";
 import * as settingsRepo from "../repositories/settings";
+import { resolveCvTailoringConfig } from "../services/cv-tailoring-bridge";
 import { generatePdf } from "../services/pdf";
 import {
   createJobPdfFingerprint,
@@ -34,7 +35,6 @@ import {
 } from "../services/pdf-fingerprint";
 import { getProfile } from "../services/profile";
 import { pickProjectIdsForJob } from "../services/projectSelection";
-import { resolveCvTailoringConfig } from "../services/cv-tailoring-bridge";
 import {
   extractProjectsFromProfile,
   resolveResumeProjectsSettings,

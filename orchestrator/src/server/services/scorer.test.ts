@@ -380,7 +380,9 @@ describe("salary penalty", () => {
       const profileText = getPromptProfileText();
       // Profile snapshot should contain key data as compact text
       expect(profileText).toContain("Headline: Software Engineer");
-      expect(profileText).toContain("Builds React and TypeScript applications.");
+      expect(profileText).toContain(
+        "Builds React and TypeScript applications.",
+      );
       expect(profileText).toContain("Sheffield");
       expect(profileText).toContain("BSc Software Engineering");
       expect(profileText).toContain("University of Lancashire");

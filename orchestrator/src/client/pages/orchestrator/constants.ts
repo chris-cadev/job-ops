@@ -2,11 +2,8 @@ import {
   EXTRACTOR_SOURCE_IDS,
   EXTRACTOR_SOURCE_METADATA,
   PIPELINE_EXTRACTOR_SOURCE_IDS,
-} from '@shared/extractors';
-import type {
-  JobSource,
-  JobStatus,
-} from '@shared/types';
+} from "@shared/extractors";
+import type { JobSource, JobStatus } from "@shared/types";
 
 export const DEFAULT_PIPELINE_SOURCES: JobSource[] = [
   "gradcracker",

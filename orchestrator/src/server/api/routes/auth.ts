@@ -6,12 +6,12 @@ import {
   unauthorized,
 } from "@infra/errors";
 import { asyncRoute, fail, ok } from "@infra/http";
-import { blacklistToken, signToken, verifyToken } from "@server/auth/jwt";
 import {
   clearAuthCookie,
   getRequestAuthToken,
   setAuthCookie,
 } from "@server/auth/cookies";
+import { blacklistToken, signToken, verifyToken } from "@server/auth/jwt";
 import { verifyPassword } from "@server/auth/password";
 import { getJobOpsAppConfig } from "@server/config/app-mode";
 import { isDemoMode } from "@server/config/demo";
