@@ -29,8 +29,8 @@
     "filter:discovered": "tsx src/server/pipeline/run-target-filter.ts",
     "jd-sync": "tsx src/server/cli/jd-sync.ts",
     "cli": "tsx src/cli/index.ts",
-    "test": "vitest",
-    "test:run": "vitest run"
+    "test": "TZ=UTC vitest",
+    "test:run": "TZ=UTC vitest run"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

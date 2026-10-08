@@ -178,7 +178,6 @@ export const JobListPanel = forwardRef<VirtualListHandle, JobListPanelProps>(
                   data-index={virtualRow.index}
                   data-job-id={job.id}
                   data-virtual-row="true"
-                  onDoubleClick={openInNewTab}
                   className={cn(
                     // Base row layout and hover behavior.
                     "group absolute left-0 top-0 flex w-full items-center gap-3 border-l-2 border-b px-4 py-3 transition-colors cursor-pointer",
@@ -229,6 +228,7 @@ export const JobListPanel = forwardRef<VirtualListHandle, JobListPanelProps>(
                   <button
                     type="button"
                     onClick={() => onSelectJob(job.id)}
+                    onDoubleClick={openInNewTab}
                     data-testid={`select-${job.id}`}
                     className="flex min-w-0 flex-1 cursor-pointer text-left"
                     aria-pressed={isSelected}

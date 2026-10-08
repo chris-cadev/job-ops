@@ -277,7 +277,7 @@ describe("OnboardingPage", () => {
     await renderPage();
 
     fireEvent.click(
-      screen.getByRole("button", { name: /verify llm connection/i }),
+      await screen.findByRole("button", { name: /verify llm connection/i }),
     );
 
     await waitFor(() => {
@@ -331,10 +331,10 @@ describe("OnboardingPage", () => {
     await renderPage();
 
     expect(
-      screen.getAllByText("Choose a Reactive Resume template").length,
+      (await screen.findAllByText("Choose a Reactive Resume template")).length,
     ).toBeGreaterThan(0);
     expect(
-      screen.getByRole("button", { name: /save template/i }),
+      await screen.findByRole("button", { name: /save template/i }),
     ).toBeEnabled();
   });
 
@@ -350,7 +350,9 @@ describe("OnboardingPage", () => {
     } as any);
 
     await renderPage();
-    fireEvent.click(screen.getByRole("button", { name: /mock upload/i }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: /mock upload/i }),
+    );
 
     await waitFor(() => {
       expect(api.importDesignResumeFromFile).toHaveBeenCalledWith(
@@ -432,8 +434,10 @@ describe("OnboardingPage", () => {
   it("can replay the coach tour", async () => {
     await renderPage();
 
-    expect(screen.getByTestId("coach")).toHaveTextContent("coach:0");
-    fireEvent.click(screen.getByRole("button", { name: /replay guide/i }));
+    expect(await screen.findByTestId("coach")).toHaveTextContent("coach:0");
+    fireEvent.click(
+      await screen.findByRole("button", { name: /replay guide/i }),
+    );
     expect(screen.getByTestId("coach")).toHaveTextContent("coach:1");
   });
 
@@ -445,7 +449,7 @@ describe("OnboardingPage", () => {
     await renderPage();
 
     expect(
-      screen.getByText("Create your workspace account"),
+      await screen.findByText("Create your workspace account"),
     ).toBeInTheDocument();
     expect(screen.getByText("Step 1 of 4")).toBeInTheDocument();
     expect(screen.getByText("0/4")).toBeInTheDocument();
