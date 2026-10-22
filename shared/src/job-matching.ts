@@ -139,6 +139,7 @@ export function matchJobLocationIntent(
       workplaceType?: "remote" | "hybrid" | "onsite" | null;
     } | null;
     isRemote?: boolean | null;
+    jobDescription?: string | null;
   },
   intent: LocationIntent,
 ): {
@@ -189,7 +190,73 @@ export function matchJobLocationIntent(
   return { matched: false, reasonCode: "no_match", priority: 0 };
 }
 
+const BLOCKED_LOCATION_PATTERNS: Array<{ label: string; regex: RegExp }> = [
+  {
+    label: "continental us only",
+    regex: /continental\s+(us|u\.s\.|united states)/i,
+  },
+  {
+    label: "us-only",
+    regex:
+      /\bus[-\s]?only\b|\busa[-\s]?only\b|\bu\.s\.[-\s]?only\b|\bunited states[-\s]?only\b/i,
+  },
+  {
+    label: "must reside in us",
+    regex:
+      /must\s+reside\s+in\s+(the\s+)?(us|u\.s\.|usa|united states|continental\s+us)/i,
+  },
+  {
+    label: "authorized to work in us",
+    regex:
+      /authorized\s+to\s+work\s+in\s+(the\s+)?(us|u\.s\.|usa|united states)/i,
+  },
+  {
+    label: "us citizenship required",
+    regex: /u\.?s\.?\s*citizenship(\s+required)?|\bus\s+citizens?\b/i,
+  },
+  { label: "weu only", regex: /\bweu\b|western\s+europe(\s+only)?/i },
+  {
+    label: "sf-based",
+    regex: /based\s+in\s+(san francisco|\bsf\b|bay area)|\bsf[-\s]?based\b/i,
+  },
+];
+
+const ALLOWLIST_LOCATION_PATTERN =
+  /remote[-\s]?(mx|mexico|latam|latin america|worldwide|world wide|global)/i;
+
 const FUZZY_DEDUP_TITLE_THRESHOLD = 90;
+
+/**
+ * Scan JD body (+ optional remote-policy signal) for location blocks hidden
+ * behind a remote label. Returns the matched phrase label, or null.
+ * Allowlist (remote-mx/latam/worldwide) wins ties. Fail-open: never throws.
+ */
+export function matchBlockedLocationPhrase(
+  input:
+    | { jobDescription?: string | null; remotePolicy?: string | null }
+    | string
+    | null
+    | undefined,
+  remotePolicy?: string | null,
+): string | null {
+  try {
+    const text =
+      typeof input === "string"
+        ? [input, remotePolicy ?? ""].join("\n")
+        : [
+            input?.jobDescription ?? "",
+            input?.remotePolicy ?? remotePolicy ?? "",
+          ].join("\n");
+    if (!text.trim()) return null;
+    if (ALLOWLIST_LOCATION_PATTERN.test(text)) return null;
+    for (const { label, regex } of BLOCKED_LOCATION_PATTERNS) {
+      if (regex.test(text)) return label;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 const FUZZY_DEDUP_EMPLOYER_THRESHOLD = 85;
 
 /**

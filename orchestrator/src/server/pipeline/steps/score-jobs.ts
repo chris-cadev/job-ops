@@ -6,6 +6,7 @@ import { generateJobBrief } from "@server/services/job-brief";
 import { scoreJobSuitability } from "@server/services/scorer";
 import * as visaSponsors from "@server/services/visa-sponsors/index";
 import { asyncPool } from "@server/utils/async-pool";
+import { matchBlockedLocationPhrase } from "@shared/job-matching.js";
 import type { Job } from "@shared/types";
 import { progressHelpers, updateProgress } from "../progress";
 import type { ScoredJob } from "./types";
@@ -85,6 +86,41 @@ async function scoreSingleJob(args: {
 }
 
 // ---------------------------------------------------------------------------
+// JD location-block filter: skip (not drop) jobs whose body hides a location
+// block behind a remote label. Runs before any LLM scoring so blocked jobs
+// cost nothing. Fail-open: empty text or matcher errors proceed to scoring.
+// ---------------------------------------------------------------------------
+async function skipBlockedLocationJob(job: Job): Promise<boolean> {
+  if (!job.jobDescription) {
+    logger.warn("JD location filter skipped: missing description", {
+      jobId: job.id,
+    });
+    return false;
+  }
+  let phrase: string | null = null;
+  try {
+    phrase = matchBlockedLocationPhrase({
+      jobDescription: job.jobDescription,
+    });
+  } catch {
+    phrase = null;
+  }
+  if (!phrase) return false;
+
+  const reason = `jd_location_blocked: ${phrase}`;
+  await jobsRepo.updateJob(job.id, {
+    status: "skipped",
+    suitabilityReason: reason,
+  });
+  logger.info("Skipped job due to blocked JD location phrase", {
+    jobId: job.id,
+    title: job.title,
+    phrase,
+  });
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 // Main scoring step — scores all unscored jobs concurrently.
 // Failures emit events and are collected for later retry.
 // ---------------------------------------------------------------------------
@@ -144,6 +180,19 @@ export async function scoreJobsStep(args: {
           suitabilityScore: job.suitabilityScore as number,
           suitabilityReason: job.suitabilityReason ?? "",
         });
+        await args.onProgress?.(completed, unprocessedJobs.length);
+        return;
+      }
+
+      // JD location-block filter runs before any LLM call — blocked jobs
+      // are skipped with a recorded reason, never scored.
+      if (await skipBlockedLocationJob(job)) {
+        completed += 1;
+        progressHelpers.scoringJob(
+          completed,
+          unprocessedJobs.length,
+          `${job.title} (location-blocked)`,
+        );
         await args.onProgress?.(completed, unprocessedJobs.length);
         return;
       }

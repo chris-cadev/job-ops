@@ -264,3 +264,86 @@ describe("scoreJobsStep auto-skip behavior", () => {
     expect(vi.mocked(jobsRepo.updateJob)).not.toHaveBeenCalled();
   });
 });
+
+describe("scoreJobsStep jd-location-blocked skip", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+
+    const jobsRepo = await import("@server/repositories/jobs");
+    const settingsRepo = await import("@server/repositories/settings");
+    const jobBrief = await import("@server/services/job-brief");
+    const visaSponsors = await import("@server/services/visa-sponsors/index");
+
+    vi.mocked(jobsRepo.getUnscoredDiscoveredJobs).mockResolvedValue([
+      createJob({
+        id: "job-blocked",
+        title: "Software Engineer",
+        employer: "Acme Corp",
+        status: "discovered",
+        suitabilityScore: null,
+        suitabilityReason: null,
+        jobDescription:
+          "Remote role. Must reside in Continental US to be eligible.",
+      }),
+    ]);
+    vi.mocked(jobsRepo.updateJob).mockResolvedValue(null);
+    vi.mocked(settingsRepo.getSetting).mockResolvedValue(null);
+    vi.mocked(jobBrief.generateJobBrief).mockResolvedValue(null);
+    vi.mocked(visaSponsors.searchSponsors).mockResolvedValue([]);
+    vi.mocked(visaSponsors.calculateSponsorMatchSummary).mockReturnValue({
+      sponsorMatchScore: 0,
+      sponsorMatchNames: null,
+    });
+  });
+
+  it("skips US-only JD without scoring and records the phrase", async () => {
+    const jobsRepo = await import("@server/repositories/jobs");
+    const scorer = await import("@server/services/scorer");
+    const { logger } = await import("@infra/logger");
+
+    await scoreJobsStep({ profile: {} });
+
+    expect(vi.mocked(scorer.scoreJobSuitability)).not.toHaveBeenCalled();
+    expect(jobsRepo.updateJob).toHaveBeenCalledWith(
+      "job-blocked",
+      expect.objectContaining({
+        status: "skipped",
+        suitabilityReason: expect.stringContaining("jd_location_blocked"),
+      }),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      "Skipped job due to blocked JD location phrase",
+      expect.objectContaining({ jobId: "job-blocked" }),
+    );
+  });
+
+  it("warns and scores normally on empty descriptions", async () => {
+    const jobsRepo = await import("@server/repositories/jobs");
+    const scorer = await import("@server/services/scorer");
+    const { logger } = await import("@infra/logger");
+
+    vi.mocked(jobsRepo.getUnscoredDiscoveredJobs).mockResolvedValue([
+      createJob({
+        id: "job-empty",
+        title: "Software Engineer",
+        employer: "Acme Corp",
+        status: "discovered",
+        suitabilityScore: null,
+        suitabilityReason: null,
+        jobDescription: "",
+      }),
+    ]);
+    vi.mocked(scorer.scoreJobSuitability).mockResolvedValue({
+      score: 80,
+      reason: "Good fit",
+    });
+
+    await scoreJobsStep({ profile: {} });
+
+    expect(vi.mocked(scorer.scoreJobSuitability)).toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith(
+      "JD location filter skipped: missing description",
+      expect.objectContaining({ jobId: "job-empty" }),
+    );
+  });
+});

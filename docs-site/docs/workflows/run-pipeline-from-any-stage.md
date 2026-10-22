@@ -109,6 +109,8 @@ curl -X POST http://localhost:3001/api/jobs/actions `
 
 Low-score jobs auto-skip when `autoSkipScoreThreshold` is set (see `/docs/features/settings`).
 
+Jobs whose JD body hides a location block behind a remote label (e.g. Continental US only, US-only, US citizenship required, WEU-only, SF-based) auto-skip before scoring with reason `jd_location_blocked: <phrase>`. The row stays in the database, so re-crawls treat the URL as a duplicate.
+
 ## 5) Selection (top-N shortlist)
 
 You are here when: jobs are scored and you want to know which ones the pipeline will process.

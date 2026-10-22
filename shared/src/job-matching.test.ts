@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { deduplicateJobsByTitleAndEmployer } from "./job-matching";
+import {
+  CLEAN_REMOTE_EXCERPT,
+  REAL_BLOCKED_JD_EXCERPT,
+} from "./jd-location-fixtures";
+import {
+  deduplicateJobsByTitleAndEmployer,
+  matchBlockedLocationPhrase,
+} from "./job-matching";
 
 function makeJob(
   overrides: Partial<{
@@ -216,5 +223,79 @@ describe("deduplicateJobsByTitleAndEmployer", () => {
         employerThreshold: 100,
       }),
     ).toHaveLength(2);
+  });
+});
+
+describe("matchBlockedLocationPhrase", () => {
+  it("flags Continental US only", () => {
+    expect(
+      matchBlockedLocationPhrase({
+        jobDescription: "Remote role. Must reside in Continental US.",
+      }),
+    ).toBe("continental us only");
+  });
+
+  it("flags US-only variants", () => {
+    expect(
+      matchBlockedLocationPhrase({ jobDescription: "Fully remote - US only" }),
+    ).toBe("us-only");
+  });
+
+  it("flags US citizenship requirement", () => {
+    expect(
+      matchBlockedLocationPhrase({
+        jobDescription: "U.S. Citizenship required for this role.",
+      }),
+    ).toBe("us citizenship required");
+  });
+
+  it("flags WEU-only remote", () => {
+    expect(
+      matchBlockedLocationPhrase({
+        jobDescription: "Remote, Western Europe only.",
+      }),
+    ).toBe("weu only");
+  });
+
+  it("flags SF-based requirement", () => {
+    expect(
+      matchBlockedLocationPhrase({
+        jobDescription: "Remote but must be based in San Francisco.",
+      }),
+    ).toBe("sf-based");
+  });
+
+  it("lets remote-mx allowlist win", () => {
+    expect(
+      matchBlockedLocationPhrase({
+        jobDescription:
+          "We serve US clients. Remote-MX, work from Mexico is fine.",
+      }),
+    ).toBeNull();
+  });
+
+  it("passes clean worldwide remote", () => {
+    expect(
+      matchBlockedLocationPhrase({
+        jobDescription: "Remote worldwide. Async team.",
+      }),
+    ).toBeNull();
+  });
+
+  it("fails open on missing text", () => {
+    expect(matchBlockedLocationPhrase({})).toBeNull();
+    expect(matchBlockedLocationPhrase({ jobDescription: "" })).toBeNull();
+  });
+
+  it("flags the real blocked JD excerpt", () => {
+    expect(
+      matchBlockedLocationPhrase({ jobDescription: REAL_BLOCKED_JD_EXCERPT }),
+    ).not.toBeNull();
+  });
+
+  it("passes the clean remote control excerpt", () => {
+    expect(
+      matchBlockedLocationPhrase({ jobDescription: CLEAN_REMOTE_EXCERPT }),
+    ).toBeNull();
   });
 });
