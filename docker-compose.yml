@@ -47,6 +47,11 @@ services:
       - SCHEDULED_PIPELINE_HOUR=${SCHEDULED_PIPELINE_HOUR:-7}
       - SCHEDULED_PIPELINE_TIMEZONE=${SCHEDULED_PIPELINE_TIMEZONE:-America/Tijuana}
 
+      # Startup guard one-shot: allow first install on an empty data dir.
+      # Default unset (safe: empty dir refuses to boot). Set to 1 for a
+      # single first boot only, then remove it.
+      - ALLOW_FRESH_INIT
+
     env_file:
       - path: ./.env
         required: false

@@ -63,3 +63,49 @@ npm --workspace docs-site run build
 
 - Re-authenticate by removing cached auth file or forcing refresh.
 - Verify extractor credentials and API response behavior.
+
+## After a reboot: login fails or setup asks to onboard again
+
+- Cause: the container autostarted before the host file share was ready,
+  so `/app/data` looked empty and the server initialized a forked database.
+  A container `restart` cannot fix this: restart keeps the same mount view.
+  Recovery direction is host -> container only.
+- Confirm the fork: compare sizes and check the bootstrap flag:
+
+```bash
+ls -la data/jobs.db
+docker exec job-seeking-job-ops-1 ls -la /app/data/
+curl -s http://127.0.0.1:3005/api/auth/bootstrap-status
+```
+
+- If the container DB is small/fresh while the host DB is large, recover:
+
+```bash
+docker compose stop job-ops
+docker compose down
+docker compose up -d
+curl -s http://127.0.0.1:3005/api/auth/bootstrap-status
+```
+
+- The last command must report `setupRequired: false`. `down`/`up` recreates
+  the container so the bind mount re-resolves; `restart` alone never does.
+- The entrypoint now refuses to boot on an empty data dir (startup guard).
+  If logs say the data dir looks unmounted, wait one minute and check
+  `docker logs job-seeking-job-ops-1`; the restart policy retries automatically.
+
+## Genuine first install on an empty data dir
+
+- The startup guard blocks fresh init unless you explicitly opt in.
+  One-shot procedure (remove the variable afterwards):
+
+```bash
+ALLOW_FRESH_INIT=1 docker compose up -d --build job-ops
+docker logs job-seeking-job-ops-1
+# after first boot succeeds, remove the variable and recreate:
+docker compose up -d --build job-ops
+```
+
+- Note: a locally built image is required for the guard to take effect,
+  because the guard lives in `docker-entrypoint.sh` baked at build time.
+  `docker compose up` without `--build` keeps running the pulled image.
+- Never copy a forked container DB back to the host `data/` directory.
