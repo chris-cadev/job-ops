@@ -58,11 +58,11 @@ export const OrchestratorPage: React.FC = () => {
   } = useOrchestratorFilters();
 
   const activeTab = useMemo(() => {
-    const validTabs: FilterTab[] = ["ready", "discovered", "applied", "all"];
+    const validTabs: FilterTab[] = ["discovered", "ready", "applied", "all"];
     if (tab && validTabs.includes(tab as FilterTab)) {
       return tab as FilterTab;
     }
-    return "ready";
+    return "discovered";
   }, [tab]);
 
   // Helper to change URL while preserving search params
@@ -88,9 +88,9 @@ export const OrchestratorPage: React.FC = () => {
       navigate("/applications/in-progress", { replace: true });
       return;
     }
-    const validTabs: FilterTab[] = ["ready", "discovered", "applied", "all"];
+    const validTabs: FilterTab[] = ["discovered", "ready", "applied", "all"];
     if (tab && !validTabs.includes(tab as FilterTab)) {
-      navigateWithContext("ready", null, true);
+      navigateWithContext("discovered", null, true);
     }
   }, [tab, navigate, navigateWithContext]);
 

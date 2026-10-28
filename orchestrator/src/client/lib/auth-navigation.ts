@@ -7,7 +7,7 @@ export function setAuthNavigator(navigator: AuthNavigator | null): void {
 }
 
 export function getCurrentAppPath(): string {
-  if (typeof window === "undefined") return "/jobs/ready";
+  if (typeof window === "undefined") return "/jobs/discovered";
   return `${window.location.pathname}${window.location.search}${window.location.hash}`;
 }
 

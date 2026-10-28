@@ -24,9 +24,9 @@ import {
 } from "../lib/remembered-auth-users";
 
 function resolveNextPath(rawNext: string | null): string {
-  if (!rawNext || !rawNext.startsWith("/")) return "/jobs/ready";
+  if (!rawNext || !rawNext.startsWith("/")) return "/jobs/discovered";
   if (rawNext === "/sign-in" || rawNext.startsWith("/sign-in?")) {
-    return "/jobs/ready";
+    return "/jobs/discovered";
   }
   return rawNext;
 }

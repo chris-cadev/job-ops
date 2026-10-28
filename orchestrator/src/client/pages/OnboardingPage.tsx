@@ -844,7 +844,7 @@ const LaunchOnboardingPage: React.FC = () => {
   ]);
 
   if (flow.demoMode) {
-    return <Navigate to="/jobs/ready" replace />;
+    return <Navigate to="/jobs/discovered" replace />;
   }
 
   const llmValidation = toValidationState(modelRequirement);
@@ -896,7 +896,7 @@ const LaunchOnboardingPage: React.FC = () => {
         flow.searchTermsSource ??
         (flow.hasSavedSearchTerms ? "existing" : "unknown"),
     });
-    navigate("/jobs/ready", { replace: true });
+    navigate("/jobs/discovered", { replace: true });
   };
 
   return (
