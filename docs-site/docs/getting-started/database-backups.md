@@ -95,6 +95,53 @@ Example shell flow:
 cp /path/to/data/jobs_manual_2026_02_15_10_20_30.db /path/to/data/jobs.db
 ```
 
+### Restore from an external filesystem backup
+
+When the whole data directory is lost (host wipe, failed disk) but a
+filesystem copy of `data/` exists elsewhere (backup disk, file-level
+snapshot), restore `jobs.db` directly — no SQL import needed:
+
+```bash
+# 1. Verify the source is a healthy SQLite DB (read-only, before copying)
+file /mnt/backup/job-ops-2026-10-06/data/jobs.db
+# expected: SQLite 3.x database ...
+
+sqlite3 /mnt/backup/job-ops-2026-10-06/data/jobs.db "PRAGMA integrity_check;"
+# expected: ok
+
+sqlite3 /mnt/backup/job-ops-2026-10-06/data/jobs.db "SELECT COUNT(*) FROM jobs;"
+# expected: row count, e.g. 1835
+
+# 2. Place the file first (Option A), then boot
+mkdir -p ./data
+cp /mnt/backup/job-ops-2026-10-06/data/jobs.db ./data/jobs.db
+test -f ./data/jobs.db && echo "marker OK"
+
+# 3. Start only job-ops (rxresume stack is independent)
+docker compose up -d job-ops
+
+# 4. Verify: migrations run, guard passes, health is 200, count matches
+docker compose logs job-ops | grep -E "migrations complete|refusing to boot"
+curl -f http://localhost:3005/health
+sqlite3 ./data/jobs.db "SELECT COUNT(*) FROM jobs;"
+```
+
+Rules that make this work:
+
+- The entrypoint refuses to boot when `./data/jobs.db` is missing (looks
+  unmounted). Placing the file **before** first boot avoids the guard; the
+  alternative (`ALLOW_FRESH_INIT=1`) forks an empty DB you must then
+  overwrite, so prefer place-first.
+- Migrations are idempotent — an older backup upgrades forward on boot,
+  rows are preserved.
+- Only `jobs.db` is required. `jwt-secret` regenerates on first login
+  (forces re-login), and missing `pdfs/`, `job-documents/`,
+  `visa-sponsors/` degrade to not-found downloads instead of boot failure.
+- If the backup has `-wal`/`-shm` sidecars of non-zero size, copy all three
+  files together; a 0-byte or absent WAL means single-file copy is safe.
+- Docker volume archives (`*_pgdata.tar.gz`) are Postgres data for
+  rxresume, not JobOps jobs — do not confuse them with `jobs.db`.
+
 ## Troubleshooting
 
 ### Backups are not running automatically
