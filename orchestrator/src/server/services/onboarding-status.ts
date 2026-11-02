@@ -12,6 +12,7 @@ import { clearProfileCache } from "@server/services/profile";
 import {
   clearRxResumeResumeCache,
   getResume,
+  RXRESUME_INVALID_API_KEY_MESSAGE,
   RxResumeAuthConfigError,
   validateResumeSchema,
   validateCredentials as validateRxResumeCredentials,
@@ -224,8 +225,7 @@ export async function validateRxresume(options?: {
     return {
       valid: false,
       status: result.status,
-      message:
-        "Reactive Resume v5 API key is invalid. Update the API key and try again.",
+      message: RXRESUME_INVALID_API_KEY_MESSAGE,
     };
   }
 

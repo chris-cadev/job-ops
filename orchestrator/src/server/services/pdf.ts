@@ -27,6 +27,7 @@ import {
   importResume as importRxResume,
   type PreparedRxResumePdfPayload,
   prepareTailoredResumeForPdf,
+  RxResumeRequestError,
 } from "./rxresume";
 import { getConfiguredRxResumeBaseResumeId } from "./rxresume/baseResumeId";
 import {
@@ -191,9 +192,17 @@ async function renderRxResumePdf(args: {
   }
 }
 
-function classifyPdfGenerationError(error: unknown): AppErrorCode {
+export function classifyPdfGenerationError(error: unknown): AppErrorCode {
   if (error instanceof AppError) {
     return error.code;
+  }
+
+  if (
+    error instanceof RxResumeRequestError &&
+    (error.status === 401 ||
+      /Reactive Resume API error \(401\)/i.test(error.message))
+  ) {
+    return "UNAUTHORIZED";
   }
 
   if (

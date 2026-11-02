@@ -1,4 +1,8 @@
-import type { JobActionResponse, JobListItem } from "@shared/types";
+import type {
+  JobActionResponse,
+  JobActionResult,
+  JobListItem,
+} from "@shared/types";
 
 const SKIPPABLE_STATUSES = new Set(["discovered", "ready"]);
 
@@ -21,4 +25,19 @@ export function getFailedJobIds(response: JobActionResponse): Set<string> {
     .filter((result) => !result.ok)
     .map((result) => result.jobId);
   return new Set(failedIds);
+}
+
+type FailedJobActionResult = Extract<JobActionResult, { ok: false }>;
+
+/**
+ * Per-job failures caused by a rejected Reactive Resume API key. The server
+ * reports these with the UNAUTHORIZED code so the UI can point at Settings.
+ */
+export function getUnauthorizedResults(
+  response: JobActionResponse,
+): FailedJobActionResult[] {
+  return response.results.filter(
+    (result): result is FailedJobActionResult =>
+      !result.ok && result.error.code === "UNAUTHORIZED",
+  );
 }

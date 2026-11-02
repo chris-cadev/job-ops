@@ -64,6 +64,14 @@ export class RxResumeRequestError extends Error {
   }
 }
 
+/**
+ * User-facing message for a rejected Reactive Resume API key. Shared by
+ * settings validation and job-action failure reporting so operators see one
+ * consistent recovery instruction. Never interpolates key material.
+ */
+export const RXRESUME_INVALID_API_KEY_MESSAGE =
+  "Reactive Resume v5 API key is invalid. Update the API key and try again.";
+
 type ResolveModeOptions = {
   forceRefresh?: boolean;
   v5?: { apiKey?: string | null; baseUrl?: string | null };

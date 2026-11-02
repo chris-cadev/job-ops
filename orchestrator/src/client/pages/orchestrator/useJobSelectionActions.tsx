@@ -15,6 +15,7 @@ import {
   canRescore,
   canSkip,
   getFailedJobIds,
+  getUnauthorizedResults,
 } from "./jobActions";
 import { clampNumber } from "./utils";
 
@@ -244,6 +245,24 @@ export function useJobSelectionActions({
 
         if (result.failed === 0) {
           toast.success(`${result.succeeded} ${successLabel}`);
+        } else if (
+          action === "move_to_ready" &&
+          getUnauthorizedResults(result).length > 0
+        ) {
+          const [firstKeyFailure] = getUnauthorizedResults(result);
+          toast.error(
+            `${result.succeeded} succeeded, ${result.failed} failed.`,
+            {
+              description: (
+                <div className="flex flex-col gap-1">
+                  <span>{firstKeyFailure.error.message}</span>
+                  <a className="underline" href="/settings#reactive-resume">
+                    Open Settings to update the API key
+                  </a>
+                </div>
+              ),
+            },
+          );
         } else {
           toast.error(
             `${result.succeeded} succeeded, ${result.failed} failed.`,

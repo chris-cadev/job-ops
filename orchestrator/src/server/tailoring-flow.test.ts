@@ -240,6 +240,30 @@ describe("Tailoring Flow", () => {
     });
   });
 
+  it("propagates the Reactive Resume 401 code for invalid API keys", async () => {
+    const discoveredJob = {
+      id: "job-discovered-bad-key",
+      jobDescription: "Backend Developer",
+      status: "discovered",
+      tailoredSummary: "Summary",
+      tailoredHeadline: "Headline",
+      tailoredSkills: JSON.stringify(["React"]),
+      selectedProjectIds: "project-a",
+    };
+
+    vi.mocked(jobsRepo.getJobById).mockResolvedValue(discoveredJob as any);
+    vi.mocked(pdfService.generatePdf).mockResolvedValue({
+      success: false,
+      error: "Reactive Resume API error (401): Unauthorized",
+      errorCode: "UNAUTHORIZED",
+    });
+
+    const result = await generateFinalPdf("job-discovered-bad-key");
+
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe("UNAUTHORIZED");
+  });
+
   it("restores the previous status when generation throws before rendering", async () => {
     const discoveredJob = {
       id: "job-discovered-bad-skills",

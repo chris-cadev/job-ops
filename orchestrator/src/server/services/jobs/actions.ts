@@ -8,6 +8,7 @@ import {
 } from "@server/services/demo-simulator";
 import { generateJobBrief } from "@server/services/job-brief";
 import { getProfile } from "@server/services/profile";
+import { RXRESUME_INVALID_API_KEY_MESSAGE } from "@server/services/rxresume";
 import { scoreJobSuitability } from "@server/services/scorer";
 import type { JobAction, JobActionResult, JobStatus } from "@shared/types";
 
@@ -175,6 +176,13 @@ export async function executeJobActionForJob(
           analyticsOrigin: options?.analyticsOrigin ?? "move_to_ready",
         });
         if (!processed.success) {
+          if (processed.errorCode === "UNAUTHORIZED") {
+            throw new AppError({
+              status: 401,
+              code: "UNAUTHORIZED",
+              message: RXRESUME_INVALID_API_KEY_MESSAGE,
+            });
+          }
           throw new AppError({
             status: 500,
             code: "INTERNAL_ERROR",

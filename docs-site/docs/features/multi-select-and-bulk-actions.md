@@ -56,6 +56,22 @@ Use shortcuts from the Jobs page:
 - Selection resets when you switch tabs.
 - If jobs disappear from the active filtered list, they are removed from selection automatically.
 
+## Common problems
+
+### Move to Ready reports an invalid Reactive Resume API key
+
+Bulk **Move to Ready** does more than flip a status: it tailors each job and then renders a resume PDF through Reactive Resume, and that render step needs a valid Reactive Resume API key.
+
+Symptom: the run finishes with `N succeeded, M failed`, and the failure reads `Reactive Resume v5 API key is invalid. Update the API key and try again.` Failed jobs stay selected so you can retry immediately after fixing the key.
+
+To recover:
+
+1. In Reactive Resume, generate a new API key.
+2. In JobOps, open **Settings → Integrations → Reactive Resume** (or follow the **Open Settings** link in the failure message) and paste the key into the API key field. Alternatively, set `RXRESUME_API_KEY` in the environment.
+3. Save, then retry **Move to Ready** — the failed jobs are still selected.
+
+This usually happens when the stored key was rotated or deleted in Reactive Resume, or when it belongs to a different Reactive Resume database (for example after restoring `jobs.db` from a backup without its matching Reactive Resume data).
+
 ## Related pages
 
 - [Keyboard Shortcuts](./keyboard-shortcuts)

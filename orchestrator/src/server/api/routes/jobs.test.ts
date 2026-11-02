@@ -1385,6 +1385,77 @@ describe.sequential("Jobs API routes", () => {
     }
   });
 
+  it("reports an invalid RxResume API key actionably for move_to_ready", async () => {
+    const { createJob } = await import("@server/repositories/jobs");
+    const readyJob = await createJob({
+      source: "manual",
+      title: "Ready Role",
+      employer: "Acme",
+      jobUrl: "https://example.com/job/action-key-ok",
+      jobDescription: "Test description",
+    });
+    const badKeyJob = await createJob({
+      source: "manual",
+      title: "Bad Key Role",
+      employer: "Acme",
+      jobUrl: "https://example.com/job/action-key-bad",
+      jobDescription: "Test description",
+    });
+    const upstreamJob = await createJob({
+      source: "manual",
+      title: "Upstream Role",
+      employer: "Acme",
+      jobUrl: "https://example.com/job/action-key-upstream",
+      jobDescription: "Test description",
+    });
+    const { processJob } = await import("@server/pipeline/index");
+    vi.mocked(processJob).mockImplementation(async (jobId: string) => {
+      if (jobId === badKeyJob.id) {
+        return {
+          success: false,
+          error:
+            "PDF generation failed. Reactive Resume API error (401): Unauthorized",
+          errorCode: "UNAUTHORIZED" as const,
+        };
+      }
+      if (jobId === upstreamJob.id) {
+        return {
+          success: false,
+          error:
+            "PDF generation failed. Reactive Resume API error (500): Failed to generate PDF",
+          errorCode: "UPSTREAM_ERROR" as const,
+        };
+      }
+      return { success: true };
+    });
+
+    const res = await fetch(`${baseUrl}/api/jobs/actions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "move_to_ready",
+        jobIds: [readyJob.id, badKeyJob.id, upstreamJob.id],
+      }),
+    });
+    const body = await res.json();
+
+    expect(body.ok).toBe(true);
+    expect(body.data.succeeded).toBe(1);
+    expect(body.data.failed).toBe(2);
+    const byId = new Map<string, any>(
+      body.data.results.map((r: any) => [r.jobId, r]),
+    );
+    expect(byId.get(readyJob.id).ok).toBe(true);
+    const badKeyResult = byId.get(badKeyJob.id);
+    expect(badKeyResult.ok).toBe(false);
+    expect(badKeyResult.error.code).toBe("UNAUTHORIZED");
+    expect(badKeyResult.error.message).toContain("API key is invalid");
+    const upstreamResult = byId.get(upstreamJob.id);
+    expect(upstreamResult.ok).toBe(false);
+    expect(upstreamResult.error.code).toBe("INTERNAL_ERROR");
+    expect(upstreamResult.error.message).toContain("Reactive Resume API error");
+  });
+
   it("supports legacy move_to_ready endpoint", async () => {
     const { createJob } = await import("@server/repositories/jobs");
     const { processJob } = await import("@server/pipeline/index");
@@ -1575,6 +1646,67 @@ describe.sequential("Jobs API routes", () => {
     expect(events.at(-1)?.completed).toBe(3);
     expect(events.at(-1)?.succeeded).toBe(2);
     expect(events.at(-1)?.failed).toBe(1);
+  });
+
+  it("streams move_to_ready failures with the invalid-key error detail", async () => {
+    const { createJob } = await import("@server/repositories/jobs");
+    const okJob = await createJob({
+      source: "manual",
+      title: "Stream OK Role",
+      employer: "Acme",
+      jobUrl: "https://example.com/job/action-stream-key-ok",
+      jobDescription: "Test description",
+    });
+    const badKeyJob = await createJob({
+      source: "manual",
+      title: "Stream Bad Key Role",
+      employer: "Acme",
+      jobUrl: "https://example.com/job/action-stream-key-bad",
+      jobDescription: "Test description",
+    });
+    const { processJob } = await import("@server/pipeline/index");
+    vi.mocked(processJob).mockImplementation(async (jobId: string) =>
+      jobId === badKeyJob.id
+        ? {
+            success: false,
+            error:
+              "PDF generation failed. Reactive Resume API error (401): Unauthorized",
+            errorCode: "UNAUTHORIZED" as const,
+          }
+        : { success: true },
+    );
+
+    const res = await fetch(`${baseUrl}/api/jobs/actions/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "move_to_ready",
+        jobIds: [okJob.id, badKeyJob.id],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/event-stream");
+    const events = (await res.text())
+      .split("\n")
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => JSON.parse(line.slice("data:".length).trim()));
+
+    const progressEvents = events.filter((event) => event.type === "progress");
+    expect(progressEvents).toHaveLength(2);
+    const failedProgress = progressEvents.find((event) => !event.result.ok);
+    expect(failedProgress.result.jobId).toBe(badKeyJob.id);
+    expect(failedProgress.result.error.code).toBe("UNAUTHORIZED");
+    expect(failedProgress.result.error.message).toContain("API key is invalid");
+
+    const completed = events.find((event) => event.type === "completed");
+    expect(completed.requested).toBe(2);
+    expect(completed.succeeded).toBe(1);
+    expect(completed.failed).toBe(1);
+    const failedResult = completed.results.find((r: any) => !r.ok);
+    expect(failedResult.jobId).toBe(badKeyJob.id);
+    expect(failedResult.error.code).toBe("UNAUTHORIZED");
+    expect(failedResult.error.message).toContain("API key is invalid");
   });
 
   it("validates job action payloads", async () => {
