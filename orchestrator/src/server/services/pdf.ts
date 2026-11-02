@@ -27,6 +27,7 @@ import {
   importResume as importRxResume,
   type PreparedRxResumePdfPayload,
   prepareTailoredResumeForPdf,
+  RxResumeAuthConfigError,
   RxResumeRequestError,
 } from "./rxresume";
 import { getConfiguredRxResumeBaseResumeId } from "./rxresume/baseResumeId";
@@ -195,6 +196,10 @@ async function renderRxResumePdf(args: {
 export function classifyPdfGenerationError(error: unknown): AppErrorCode {
   if (error instanceof AppError) {
     return error.code;
+  }
+
+  if (error instanceof RxResumeAuthConfigError) {
+    return "INVALID_REQUEST";
   }
 
   if (

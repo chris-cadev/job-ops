@@ -1456,6 +1456,105 @@ describe.sequential("Jobs API routes", () => {
     expect(upstreamResult.error.message).toContain("Reactive Resume API error");
   });
 
+  it("marks jobs ready without a PDF when no RxResume key is configured", async () => {
+    const { createJob, getJobById, updateJob } = await import(
+      "@server/repositories/jobs"
+    );
+    const first = await createJob({
+      source: "manual",
+      title: "No Key Role",
+      employer: "Acme",
+      jobUrl: "https://example.com/job/action-no-key-1",
+      jobDescription: "Test description",
+    });
+    const second = await createJob({
+      source: "manual",
+      title: "No Key Tailored Role",
+      employer: "Acme",
+      jobUrl: "https://example.com/job/action-no-key-2",
+      jobDescription: "Test description",
+    });
+    await updateJob(second.id, { tailoredSummary: "Tailored summary" });
+    const { processJob } = await import("@server/pipeline/index");
+    // NOTE: the pipeline mock is shared across tests in this file, so the
+    // override must be restored afterwards (see finally below).
+    vi.mocked(processJob).mockImplementation(async (jobId: string) => {
+      await updateJob(jobId, { status: "ready" });
+      return { success: true, readyWithoutPdf: true };
+    });
+
+    try {
+      const res = await fetch(`${baseUrl}/api/jobs/actions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "move_to_ready",
+          jobIds: [first.id, second.id],
+        }),
+      });
+      const body = await res.json();
+
+      expect(body.ok).toBe(true);
+      expect(body.data.succeeded).toBe(2);
+      expect(body.data.failed).toBe(0);
+      for (const result of body.data.results) {
+        expect(result.ok).toBe(true);
+        expect(result.readyWithoutPdf).toBe(true);
+      }
+      const firstJob = await getJobById(first.id);
+      const secondJob = await getJobById(second.id);
+      expect(firstJob?.status).toBe("ready");
+      expect(firstJob?.pdfPath).toBeFalsy();
+      expect(secondJob?.status).toBe("ready");
+      expect(secondJob?.tailoredSummary).toBe("Tailored summary");
+      expect(secondJob?.pdfPath).toBeFalsy();
+    } finally {
+      vi.mocked(processJob).mockReset();
+      vi.mocked(processJob).mockResolvedValue({ success: true });
+    }
+  });
+
+  it("streams ready-without-PDF results with the fallback flag", async () => {
+    const { createJob, getJobById, updateJob } = await import(
+      "@server/repositories/jobs"
+    );
+    const job = await createJob({
+      source: "manual",
+      title: "Stream No Key Role",
+      employer: "Acme",
+      jobUrl: "https://example.com/job/action-stream-no-key",
+      jobDescription: "Test description",
+    });
+    const { processJob } = await import("@server/pipeline/index");
+    // NOTE: the pipeline mock is shared across tests in this file, so the
+    // override must be restored afterwards (see finally below).
+    vi.mocked(processJob).mockImplementation(async (jobId: string) => {
+      await updateJob(jobId, { status: "ready" });
+      return { success: true, readyWithoutPdf: true };
+    });
+
+    try {
+      const res = await fetch(`${baseUrl}/api/jobs/actions/stream`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "move_to_ready", jobIds: [job.id] }),
+      });
+
+      expect(res.status).toBe(200);
+      const events = (await res.text())
+        .split("\n")
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => JSON.parse(line.slice("data:".length).trim()));
+      const completed = events.find((event) => event.type === "completed");
+      expect(completed.succeeded).toBe(1);
+      expect(completed.results[0].readyWithoutPdf).toBe(true);
+      expect((await getJobById(job.id))?.status).toBe("ready");
+    } finally {
+      vi.mocked(processJob).mockReset();
+      vi.mocked(processJob).mockResolvedValue({ success: true });
+    }
+  });
+
   it("supports legacy move_to_ready endpoint", async () => {
     const { createJob } = await import("@server/repositories/jobs");
     const { processJob } = await import("@server/pipeline/index");

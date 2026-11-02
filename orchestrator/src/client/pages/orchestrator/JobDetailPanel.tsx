@@ -798,21 +798,23 @@ export const JobDetailPanel: React.FC<JobDetailPanelProps> = ({
               </div>
             </div>
             <div className="grid gap-2 sm:grid-cols-3">
-              <TooltipWhenDisabled
-                reason={pdfRegeneratingReason}
-                className="w-full"
-              >
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleDownloadPdf}
-                  disabled={pdfActionDisabled}
+              {selectedJob.pdfPath && (
+                <TooltipWhenDisabled
+                  reason={pdfRegeneratingReason}
+                  className="w-full"
                 >
-                  <Download className="size-3.5" />
-                  {pdfLabels.download}
-                  <KbdHint shortcut="d" className="ml-auto" />
-                </Button>
-              </TooltipWhenDisabled>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleDownloadPdf}
+                    disabled={pdfActionDisabled}
+                  >
+                    <Download className="size-3.5" />
+                    {pdfLabels.download}
+                    <KbdHint shortcut="d" className="ml-auto" />
+                  </Button>
+                </TooltipWhenDisabled>
+              )}
               <OpenJobListingButton
                 href={jobLink}
                 size="sm"

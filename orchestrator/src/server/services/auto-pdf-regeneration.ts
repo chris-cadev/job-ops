@@ -197,6 +197,7 @@ async function processQueuedAutoPdfRegeneration(input: {
 
       const result = await generateFinalPdf(job.id, {
         analyticsOrigin: "auto_pdf_regeneration",
+        allowReadyWithoutPdf: true,
       });
 
       if (!result.success) {

@@ -1,9 +1,18 @@
 import { AppError } from "@infra/errors";
 import { describe, expect, it } from "vitest";
 import { classifyPdfGenerationError } from "./pdf";
-import { RxResumeRequestError } from "./rxresume";
+import { RxResumeAuthConfigError, RxResumeRequestError } from "./rxresume";
 
 describe("classifyPdfGenerationError", () => {
+  it("maps a missing Reactive Resume key to INVALID_REQUEST", () => {
+    expect(
+      classifyPdfGenerationError(
+        new RxResumeAuthConfigError(
+          "Reactive Resume API key is not configured. Set RXRESUME_API_KEY or configure rxresumeApiKey in Settings.",
+        ),
+      ),
+    ).toBe("INVALID_REQUEST");
+  });
   it("maps a Reactive Resume 401 to UNAUTHORIZED", () => {
     expect(
       classifyPdfGenerationError(

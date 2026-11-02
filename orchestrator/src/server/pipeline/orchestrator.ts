@@ -641,6 +641,12 @@ export type ProcessJobOptions = {
   force?: boolean;
   fields?: Array<"summary" | "headline" | "skills">;
   requestOrigin?: string | null;
+  /**
+   * When true, a missing Reactive Resume key skips rendering and marks the
+   * job ready without a PDF instead of failing. Set by status-transition
+   * flows; explicit generate-PDF requests leave it unset.
+   */
+  allowReadyWithoutPdf?: boolean;
   analyticsOrigin?:
     | "move_to_ready"
     | "generate_pdf"
@@ -784,6 +790,7 @@ export async function generateFinalPdf(
   success: boolean;
   error?: string;
   errorCode?: AppErrorCode;
+  readyWithoutPdf?: boolean;
 }> {
   return runWithRequestContext({ jobId }, async () => {
     const jobLogger = logger.child({ jobId });
@@ -830,6 +837,38 @@ export async function generateFinalPdf(
           tracerCompanyName: job.employer ?? null,
         },
       );
+
+      const analyticsOrigin = options?.analyticsOrigin ?? "move_to_ready";
+
+      if (
+        !pdfResult.success &&
+        options?.allowReadyWithoutPdf &&
+        pdfResult.errorCode === "INVALID_REQUEST" &&
+        /not configured/i.test(pdfResult.error ?? "")
+      ) {
+        jobLogger.info(
+          "Skipping PDF generation: Reactive Resume is not configured; marking job ready without a PDF",
+        );
+        await jobsRepo.updateJob(job.id, {
+          status: "ready",
+          pdfRegenerating: false,
+        });
+        pdfRegeneratingMarked = false;
+        if (jobStatusToRestore !== "ready") {
+          void trackServerProductEvent(
+            "job_moved_to_ready",
+            {
+              origin: analyticsOrigin,
+              tracer_links_enabled: job.tracerLinksEnabled,
+            },
+            {
+              requestOrigin: options?.requestOrigin ?? null,
+              urlPath: "/jobs",
+            },
+          );
+        }
+        return { success: true, readyWithoutPdf: true };
+      }
 
       if (!pdfResult.success) {
         await jobsRepo.updateJob(job.id, {
@@ -884,7 +923,6 @@ export async function generateFinalPdf(
       }
       pdfRegeneratingMarked = false;
 
-      const analyticsOrigin = options?.analyticsOrigin ?? "move_to_ready";
       const generationKind = job.status === "ready" ? "regenerate" : "initial";
       void trackServerProductEvent(
         "resume_generated",
@@ -952,14 +990,19 @@ export async function processJob(
   success: boolean;
   error?: string;
   errorCode?: AppErrorCode;
+  readyWithoutPdf?: boolean;
 }> {
   try {
     // Step 1: Summarize & Select Projects
     const sumResult = await summarizeJob(jobId, options);
     if (!sumResult.success) return sumResult;
 
-    // Step 2: Generate PDF
-    const pdfResult = await generateFinalPdf(jobId, options);
+    // Step 2: Generate PDF (status-transition flows tolerate a missing key
+    // by marking the job ready without a PDF).
+    const pdfResult = await generateFinalPdf(jobId, {
+      ...options,
+      allowReadyWithoutPdf: true,
+    });
     return pdfResult;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";

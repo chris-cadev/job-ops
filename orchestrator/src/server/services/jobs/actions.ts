@@ -189,6 +189,22 @@ export async function executeJobActionForJob(
             message: processed.error || "Failed to process job",
           });
         }
+        if (processed.readyWithoutPdf) {
+          const updatedWithoutPdf = await jobsRepo.getJobById(jobId);
+          if (!updatedWithoutPdf) {
+            throw new AppError({
+              status: 404,
+              code: "NOT_FOUND",
+              message: "Job not found after processing",
+            });
+          }
+          return {
+            jobId,
+            ok: true,
+            job: updatedWithoutPdf,
+            readyWithoutPdf: true as const,
+          };
+        }
       }
 
       const updated = await jobsRepo.getJobById(jobId);

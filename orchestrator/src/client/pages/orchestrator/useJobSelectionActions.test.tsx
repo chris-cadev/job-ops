@@ -109,6 +109,45 @@ describe("useJobSelectionActions move_to_ready failures", () => {
     expect(result.current.selectedJobIds.has("job-ok")).toBe(false);
   });
 
+  it("notes the no-PDF outcome when the fallback engages", async () => {
+    emitCompletedRun([
+      {
+        jobId: "job-1",
+        ok: true,
+        job: makeJob("job-1"),
+        readyWithoutPdf: true,
+      },
+      {
+        jobId: "job-2",
+        ok: true,
+        job: makeJob("job-2"),
+        readyWithoutPdf: true,
+      },
+    ]);
+    const loadJobs = vi.fn().mockResolvedValue(undefined);
+
+    const { result } = renderHookWithQueryClient(() =>
+      useJobSelectionActions({
+        activeJobs: [makeJob("job-1"), makeJob("job-2")],
+        activeTab: "discovered",
+        loadJobs,
+      }),
+    );
+
+    act(() => {
+      result.current.toggleSelectJob("job-1");
+      result.current.toggleSelectJob("job-2");
+    });
+    await act(async () => {
+      await result.current.runJobAction("move_to_ready");
+    });
+
+    expect(toast.success).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(toast.success).mock.calls[0][0]).toContain(
+      "2 jobs moved to Ready without a PDF",
+    );
+  });
+
   it("keeps the plain success message for normal renders", async () => {
     emitCompletedRun([{ jobId: "job-1", ok: true, job: makeJob("job-1") }]);
     const loadJobs = vi.fn().mockResolvedValue(undefined);

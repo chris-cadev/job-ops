@@ -72,6 +72,19 @@ To recover:
 
 This usually happens when the stored key was rotated or deleted in Reactive Resume, or when it belongs to a different Reactive Resume database (for example after restoring `jobs.db` from a backup without its matching Reactive Resume data).
 
+### Move to Ready succeeds without a PDF when no key is set
+
+This is different from the invalid-key failure above, and it is expected behavior — not an error.
+
+When **no** Reactive Resume API key is configured at all, **Move to Ready** still tailors each job and moves it to Ready, but skips the PDF render. The success message says the jobs moved to Ready **without a PDF**, and the Ready view shows the Resume PDF kit item as Missing instead of a download button.
+
+To get PDFs later:
+
+1. Configure a key in **Settings → Integrations → Reactive Resume** (or set `RXRESUME_API_KEY` in the environment).
+2. Use **Generate PDF** on the job (or wait for automatic regeneration) — the tailored content is already there, so only the render runs.
+
+If a key is configured but rejected, you get the invalid-key failure above instead of this fallback — a silent skip would hide the misconfiguration.
+
 ## Related pages
 
 - [Keyboard Shortcuts](./keyboard-shortcuts)

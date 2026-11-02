@@ -264,6 +264,78 @@ describe("Tailoring Flow", () => {
     expect(result.errorCode).toBe("UNAUTHORIZED");
   });
 
+  it("marks the job ready without a PDF when the key is missing and the fallback is allowed", async () => {
+    const discoveredJob = {
+      id: "job-discovered-no-key",
+      jobDescription: "Backend Developer",
+      status: "discovered",
+      tailoredSummary: "Summary",
+      tailoredHeadline: "Headline",
+      tailoredSkills: JSON.stringify(["React"]),
+      selectedProjectIds: "project-a",
+    };
+
+    vi.mocked(jobsRepo.getJobById).mockResolvedValue(discoveredJob as any);
+    vi.mocked(pdfService.generatePdf).mockResolvedValue({
+      success: false,
+      error:
+        "Reactive Resume API key is not configured. Set RXRESUME_API_KEY or configure rxresumeApiKey in Settings.",
+      errorCode: "INVALID_REQUEST",
+    });
+
+    const result = await generateFinalPdf("job-discovered-no-key", {
+      allowReadyWithoutPdf: true,
+    });
+
+    expect(result).toEqual({ success: true, readyWithoutPdf: true });
+    expect(jobsRepo.updateJob).toHaveBeenNthCalledWith(
+      1,
+      "job-discovered-no-key",
+      { status: "processing", pdfRegenerating: true },
+    );
+    expect(jobsRepo.updateJob).toHaveBeenNthCalledWith(
+      2,
+      "job-discovered-no-key",
+      { status: "ready", pdfRegenerating: false },
+    );
+    expect(trackServerProductEvent).toHaveBeenCalledWith(
+      "job_moved_to_ready",
+      expect.objectContaining({ origin: "move_to_ready" }),
+      expect.objectContaining({ urlPath: "/jobs" }),
+    );
+    expect(trackServerProductEvent).not.toHaveBeenCalledWith(
+      "resume_generated",
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  it("still fails without the fallback flag when the key is missing", async () => {
+    const discoveredJob = {
+      id: "job-discovered-no-key-flag-off",
+      jobDescription: "Backend Developer",
+      status: "discovered",
+      tailoredSummary: "Summary",
+      tailoredHeadline: "Headline",
+      tailoredSkills: JSON.stringify(["React"]),
+      selectedProjectIds: "project-a",
+    };
+
+    vi.mocked(jobsRepo.getJobById).mockResolvedValue(discoveredJob as any);
+    vi.mocked(pdfService.generatePdf).mockResolvedValue({
+      success: false,
+      error:
+        "Reactive Resume API key is not configured. Set RXRESUME_API_KEY or configure rxresumeApiKey in Settings.",
+      errorCode: "INVALID_REQUEST",
+    });
+
+    const result = await generateFinalPdf("job-discovered-no-key-flag-off");
+
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe("INVALID_REQUEST");
+    expect(result.error).toContain("not configured");
+  });
+
   it("restores the previous status when generation throws before rendering", async () => {
     const discoveredJob = {
       id: "job-discovered-bad-skills",

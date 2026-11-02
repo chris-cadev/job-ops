@@ -244,7 +244,14 @@ export function useJobSelectionActions({
         });
 
         if (result.failed === 0) {
-          toast.success(`${result.succeeded} ${successLabel}`);
+          const readyWithoutPdfCount = result.results.filter(
+            (item) => item.ok && item.readyWithoutPdf,
+          ).length;
+          toast.success(
+            readyWithoutPdfCount > 0
+              ? `${result.succeeded} ${successLabel} without a PDF (Reactive Resume is not configured)`
+              : `${result.succeeded} ${successLabel}`,
+          );
         } else if (
           action === "move_to_ready" &&
           getUnauthorizedResults(result).length > 0

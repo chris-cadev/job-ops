@@ -281,6 +281,7 @@ export type JobActionResult =
       jobId: string;
       ok: true;
       job: Job;
+      readyWithoutPdf?: boolean;
     }
   | {
       jobId: string;

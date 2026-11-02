@@ -216,6 +216,40 @@ describe("JobDetailPanel", () => {
     ).toBeEnabled();
   });
 
+  it("renders ready jobs without a PDF with missing-PDF affordances", async () => {
+    const job = createJob({
+      status: "ready",
+      pdfPath: null,
+      pdfFreshness: "missing",
+      tailoredSummary: "Tailored summary",
+    });
+
+    await renderJobDetailPanel({
+      activeTab: "ready",
+      activeJobs: [job],
+      selectedJob: job,
+      onSelectJobId: vi.fn(),
+      onJobUpdated: vi.fn().mockResolvedValue(undefined),
+    });
+
+    fireEvent.click(screen.getByRole("tab", { name: /apply/i }));
+
+    expect(screen.getByText("Resume PDF")).toBeInTheDocument();
+    expect(screen.getAllByText("Missing").length).toBeGreaterThan(0);
+    expect(
+      screen.queryByRole("button", { name: /download pdf/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: /download pdf/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: /upload pdf/i }),
+    ).toBeInTheDocument();
+    expect(
+      within(getApplyPanel()).getByRole("button", { name: /mark applied/i }),
+    ).toBeEnabled();
+  });
+
   it("promotes Mark Applied after the ready job listing is opened", async () => {
     const job = createJob({
       status: "ready",
