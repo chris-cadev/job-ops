@@ -85,6 +85,33 @@ describe("scheduled ticks", () => {
     });
     expect(saturday.toISOString()).toBe("2026-10-04T03:47:00.000Z");
   });
+
+  it("resolves Thu–Mon 7/13/19 America/Tijuana ticks", () => {
+    const schedule = {
+      cron: "0 7,13,19 * * 4,5,6,0,1",
+      timezone: "America/Tijuana",
+    };
+    // Monday 2026-11-02: just after the 13:00 Tijuana tick → next is 19:00 Tijuana.
+    const mondayEvening = getNextScheduledTick({
+      ...schedule,
+      from: new Date("2026-11-02T21:00:01.000Z"),
+    });
+    expect(mondayEvening.toISOString()).toBe("2026-11-03T03:00:00.000Z");
+
+    // Tue/Wed are off: from Tuesday morning the next tick is Thu 07:00 Tijuana.
+    const afterGap = getNextScheduledTick({
+      ...schedule,
+      from: new Date("2026-11-03T04:00:00.000Z"),
+    });
+    expect(afterGap.toISOString()).toBe("2026-11-05T15:00:00.000Z");
+
+    // Friday 19:00 Tijuana tick → next is Saturday 07:00 Tijuana.
+    const saturdayMorning = getNextScheduledTick({
+      ...schedule,
+      from: new Date("2026-11-07T03:00:00.000Z"),
+    });
+    expect(saturdayMorning.toISOString()).toBe("2026-11-07T15:00:00.000Z");
+  });
 });
 
 describe("shouldRunScheduledOnStartup", () => {
@@ -116,6 +143,20 @@ describe("shouldRunScheduledOnStartup", () => {
           startedAt: "2026-10-01T03:47:00.000Z", // Thursday
         }),
         previousTick: saturdayTick,
+      }),
+    ).toMatchObject({ run: true, reason: "missed-tick" });
+  });
+
+  it("runs once after the Tue–Wed off-days gap (non-cumulative)", () => {
+    // Last run covered Mon 19:00 Tijuana (Tue 03:00 UTC); boot Thu after the
+    // 07:00 Tijuana tick. One catch-up, not a backfill of every missed window.
+    const thursdayMorningTick = new Date("2026-11-05T15:00:00.000Z");
+    expect(
+      shouldRunScheduledOnStartup({
+        lastScheduledRun: scheduledRun({
+          startedAt: "2026-11-03T03:00:00.000Z", // Monday 19:00 Tijuana
+        }),
+        previousTick: thursdayMorningTick,
       }),
     ).toMatchObject({ run: true, reason: "missed-tick" });
   });
