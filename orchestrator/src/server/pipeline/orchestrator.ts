@@ -533,7 +533,7 @@ export async function runPipeline(
       });
       jobsProcessed = processedCount;
 
-      // --- CV tailoring fan-out/fan-in (opt-in; every discovered job) ---
+      // --- CV tailoring fan-out/fan-in (opt-in; survivors of this run only) ---
       ensureNotCancelled(tenantId);
       const cvConfig = await resolveCvTailoringConfig(
         mergedConfig.enableCvTailoring,
@@ -541,6 +541,7 @@ export async function runPipeline(
       if (cvConfig) {
         const cvResult = await tailorCvsStep({
           config: cvConfig,
+          jobIds: jobsToProcess.map((job) => job.id),
           shouldCancel: () =>
             getPipelineState(tenantId).cancelRequestedAt !== null,
         });

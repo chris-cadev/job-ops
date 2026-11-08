@@ -8,6 +8,7 @@ vi.mock("@infra/logger", () => ({
 
 vi.mock("@server/repositories/jobs", () => ({
   getDiscoveredJobs: vi.fn(),
+  getJobById: vi.fn(),
 }));
 
 vi.mock("@server/services/cv-tailoring-bridge", () => ({
@@ -87,5 +88,95 @@ describe("tailorCvsStep", () => {
     const result = await tailorCvsStep({ config });
 
     expect(result.failed).toBe(1);
+  });
+
+  it("ignores leftover discovered jobs outside the survivor set", async () => {
+    const jobsRepo = await import("@server/repositories/jobs");
+    const { runCvTailoringForJob } = await import(
+      "@server/services/cv-tailoring-bridge"
+    );
+    // Filtered-out leftover: still discovered with a JD, but not a survivor.
+    vi.mocked(jobsRepo.getDiscoveredJobs).mockResolvedValue([
+      createJob({ id: "leftover", jobDescription: "filtered-out desc" }),
+    ]);
+    vi.mocked(jobsRepo.getJobById).mockImplementation(async (id: string) =>
+      id === "s1" ? createJob({ id: "s1", jobDescription: "desc 1" }) : null,
+    );
+    vi.mocked(runCvTailoringForJob).mockResolvedValue({
+      jobId: "s1",
+      success: true,
+      docUrl: "https://docs.google.com/document/d/abc/edit",
+    });
+
+    const result = await tailorCvsStep({ config, jobIds: ["s1"] });
+
+    expect(result).toEqual({
+      attempted: 1,
+      succeeded: 1,
+      failed: 0,
+      skipped: 0,
+    });
+    expect(runCvTailoringForJob).toHaveBeenCalledTimes(1);
+    expect(runCvTailoringForJob).toHaveBeenCalledWith(
+      "s1",
+      config,
+      expect.objectContaining({}),
+    );
+  });
+  it("short-circuits an empty survivor list to zeros without a DB scan", async () => {
+    const jobsRepo = await import("@server/repositories/jobs");
+    const { runCvTailoringForJob } = await import(
+      "@server/services/cv-tailoring-bridge"
+    );
+
+    const result = await tailorCvsStep({ config, jobIds: [] });
+
+    expect(result).toEqual({
+      attempted: 0,
+      succeeded: 0,
+      failed: 0,
+      skipped: 0,
+    });
+    expect(runCvTailoringForJob).not.toHaveBeenCalled();
+    expect(jobsRepo.getDiscoveredJobs).not.toHaveBeenCalled();
+    expect(jobsRepo.getJobById).not.toHaveBeenCalled();
+  });
+
+  it("fans out over exactly the survivor IDs and skips JD-less survivors", async () => {
+    const jobsRepo = await import("@server/repositories/jobs");
+    const { runCvTailoringForJob } = await import(
+      "@server/services/cv-tailoring-bridge"
+    );
+    const survivor = createJob({ id: "s1", jobDescription: "desc 1" });
+    const noJd = createJob({ id: "s2", jobDescription: "  " });
+    const missingId = "gone";
+    vi.mocked(jobsRepo.getJobById).mockImplementation(async (id: string) => {
+      if (id === "s1") return survivor;
+      if (id === "s2") return noJd;
+      return null;
+    });
+    vi.mocked(runCvTailoringForJob).mockResolvedValue({
+      jobId: "s1",
+      success: true,
+    });
+
+    const result = await tailorCvsStep({
+      config,
+      jobIds: ["s1", "s2", missingId, "s1"],
+    });
+
+    expect(result).toEqual({
+      attempted: 1,
+      succeeded: 1,
+      failed: 0,
+      skipped: 0,
+    });
+    expect(runCvTailoringForJob).toHaveBeenCalledTimes(1);
+    expect(runCvTailoringForJob).toHaveBeenCalledWith(
+      "s1",
+      config,
+      expect.objectContaining({}),
+    );
+    expect(jobsRepo.getDiscoveredJobs).not.toHaveBeenCalled();
   });
 });

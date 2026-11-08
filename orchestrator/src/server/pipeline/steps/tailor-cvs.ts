@@ -16,14 +16,23 @@ export type TailorCvsStepResult = {
 };
 
 /**
- * Fan-out/fan-in over every discovered job with a description: run external
- * cv-tailoring per job (bounded concurrency), then join with counts.
- * Never throws; per-job failures are collected, not raised.
+ * Fan-out/fan-in for external cv-tailoring per job (bounded concurrency),
+ * then join with counts. Never throws; per-job failures are collected,
+ * not raised.
+ *
+ * Input contract:
+ * - `jobIds` undefined (legacy): fans out over every discovered job with a
+ *   description (pipeline behavior before survivor scoping).
+ * - `jobIds` defined: fans out over exactly those survivor IDs, resolved via
+ *   `getJobById` (missing rows dropped) and filtered to non-empty JD.
+ *   `[]` short-circuits to zeros without a DB scan or pool — it means the
+ *   run selected no survivors, not "fall back to all-discovered".
  */
 export async function tailorCvsStep(args: {
   config: CvTailoringConfig;
   force?: boolean;
   shouldCancel?: () => boolean;
+  jobIds?: string[];
 }): Promise<TailorCvsStepResult> {
   const result: TailorCvsStepResult = {
     attempted: 0,
@@ -31,14 +40,25 @@ export async function tailorCvsStep(args: {
     failed: 0,
     skipped: 0,
   };
-  const jobs = (await jobsRepo.getDiscoveredJobs()).filter((job) =>
-    job.jobDescription?.trim(),
-  );
-  if (jobs.length === 0) return result;
-  result.attempted = jobs.length;
+  let jobs: Array<{ id: string; jobDescription?: string | null }>;
+  if (args.jobIds !== undefined) {
+    if (args.jobIds.length === 0) return result;
+    const uniqueIds = [...new Set(args.jobIds)];
+    const resolved = await Promise.all(
+      uniqueIds.map((id) => jobsRepo.getJobById(id)),
+    );
+    jobs = resolved.filter(
+      (job): job is NonNullable<typeof job> => job !== null,
+    );
+  } else {
+    jobs = await jobsRepo.getDiscoveredJobs();
+  }
+  const eligible = jobs.filter((job) => job.jobDescription?.trim());
+  if (eligible.length === 0) return result;
+  result.attempted = eligible.length;
 
   const outcomes = await asyncPool({
-    items: jobs,
+    items: eligible,
     concurrency: args.config.concurrency,
     shouldStop: args.shouldCancel,
     task: async (job): Promise<CvTailoringJobResult> => {
