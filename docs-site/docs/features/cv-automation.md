@@ -138,13 +138,15 @@ When `enableCvTailoring` is set (per run via `POST /api/pipeline/run`, via the `
 
 ```mermaid
 flowchart TD
-  A["processJobsStep done"] --> B["tailorCvsStep<br/>input: all discovered jobs with JD"]
+  A["processJobsStep done<br/>survivors = jobsToProcess"] --> B["tailorCvsStep<br/>input: survivor IDs of this run (with JD)"]
   B --> C["per job, concurrency = cvTailoringConcurrency ?? 2<br/>ingest-jd.py + generate-cv.py --no-questions"]
   C --> D["parse Doc URL from stdout"]
   D --> E["upsert Tailored CVs note<br/>append Doc URL line"]
   E --> F["export Doc to PDF + upload<br/>discovered -> ready"]
   F --> G["allSettled join<br/>counts logged, never throws"]
 ```
+
+Only jobs that pass the run's filtering pile (target filter → suitability score ≥ `minSuitabilityScore` → `topN` select) are eligible: the step fans out over the run's survivor IDs, not over all `discovered` rows. Filtered-out jobs get no ingest/generate/publish work in that run. An empty survivor set reports `attempted: 0, succeeded: 0, failed: 0, skipped: 0` and runs nothing. Jobs that became `ready` in earlier runs are not backfilled — only survivors of newest runs get published CVs.
 
 1. Configure the bridge: set `CV_TAILORING_REPO_PATH` (or the `cvTailoringRepoPath` setting) to the cv-tailoring checkout. Without it the phase warns and skips; the pipeline still completes. docker-compose mounts the full repo at `/cv-tailoring` (not only the JD folder).
 2. Tune load with `cvTailoringConcurrency` (default 2) and `cvTailoringTimeoutSec` (default 420, passed as `generate-cv.py --timeout`).
