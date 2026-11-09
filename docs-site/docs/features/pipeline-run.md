@@ -87,6 +87,27 @@ Source behavior differs:
 - Multiple terms increase discovery breadth and runtime.
 - At least one search term is required.
 
+#### Scheduled target (Tijuana DEV)
+
+The scheduled Thu–Mon runs use the `Tijuana DEV` saved search, retargeted to
+the operator's JS stack. Live config (read back 2026-11-08):
+
+- **Terms:** React, React Native, Node.js, NestJS, Express
+- **Cities:** tijuana, rosarito, ensenada, mexicali, tecate, la paz
+- **Sources:** indeed, linkedin, startupjobs, workingnomads, glassdoor
+  (`golangjobs` removed with the Go terms)
+- **Workplace:** remote-only; remote is a MUST — on-site/hybrid roles are
+  off-target everywhere, including Baja cities
+- **Seniority:** middle / mid-level / semi-senior and hands-on Senior;
+  Junior/Entry and Tech Lead and above are off-target without LLM spend
+- **Filter caps unchanged:** topN 10, min suitability score 50
+
+Retargeting the saved search takes effect on the next scheduled tick (the
+runner re-reads the preset per run — no deploy). Narrower terms mean fewer
+discovered jobs and less LLM filter/score spend; compare a run's
+discovered/filtered/scored/selected counts against baseline before and after
+a term change.
+
 #### Estimate and run gating
 
 The footer estimate shows expected discovered jobs and resume-processing range.
