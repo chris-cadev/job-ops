@@ -176,7 +176,7 @@ describe("filterNonTargetStep", () => {
     );
   });
 
-  it("keeps entry-level jobs without calling the LLM", async () => {
+  it("skips entry-level jobs directly without calling the LLM", async () => {
     const jobsRepo = await import("@server/repositories/jobs");
     const settingsRepo = await import("@server/repositories/settings");
     const { classifyJobBatch, classifyJobTarget } = await import(
@@ -206,14 +206,20 @@ describe("filterNonTargetStep", () => {
 
     const result = await filterNonTargetStep();
 
-    expect(result).toMatchObject({ checked: 2, skipped: 0 });
-    // Only the non-entry job reaches the batch.
+    expect(result).toMatchObject({ checked: 2, skipped: 1 });
+    // The junior job is skipped directly; only j2 reaches the batch.
+    expect(jobsRepo.updateJob).toHaveBeenCalledWith(
+      "j1",
+      expect.objectContaining({
+        status: "skipped",
+        suitabilityReason: expect.stringContaining("entry-level"),
+      }),
+    );
     expect(classifyJobBatch).toHaveBeenCalledWith(
       expect.objectContaining({
         jobs: [expect.objectContaining({ id: "j2" })],
       }),
     );
     expect(classifyJobTarget).not.toHaveBeenCalled();
-    expect(jobsRepo.updateJob).not.toHaveBeenCalled();
   });
 });

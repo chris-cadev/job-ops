@@ -48,7 +48,7 @@ describe("target filter", () => {
     });
   });
 
-  it("treats every entry-level title as target without calling the LLM", async () => {
+  it("treats every entry-level title as off-target without calling the LLM", async () => {
     expect(isEntryLevelTitle("Junior QA Engineer")).toBe(true);
     expect(isEntryLevelTitle("Entry-Level Data Scientist")).toBe(true);
     expect(isEntryLevelTitle("Graduate Hardware Engineer")).toBe(true);
@@ -59,7 +59,8 @@ describe("target filter", () => {
       job: { ...job, title: "Junior QA Engineer" },
       profileMd: "target",
     });
-    expect(result.isTarget).toBe(true);
+    expect(result.isTarget).toBe(false);
+    expect(result.reason).toMatch(/seniority band/i);
     expect(createConfiguredLlmServiceMock).not.toHaveBeenCalled();
   });
 
