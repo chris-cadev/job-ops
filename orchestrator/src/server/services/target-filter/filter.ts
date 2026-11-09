@@ -70,7 +70,8 @@ export type BatchJob = Pick<
 
 export type JobVerdict = { isTarget: boolean; reason: string };
 
-// ponytail: entry-level titles always pass, even in excluded categories
+// ponytail: entry-level titles are below the target seniority band —
+// classify without spending an LLM call, verdict off-target.
 export const ENTRY_LEVEL_PATTERN =
   /\b(junior|entry[-\s]?level|graduate|intern(?:ship)?|trainee|\bjr\.?\b)/i;
 
@@ -226,7 +227,10 @@ export async function classifyJobTarget(args: {
 }): Promise<{ isTarget: boolean; reason: string }> {
   const { job, profileMd } = args;
   if (isEntryLevelTitle(job.title)) {
-    return { isTarget: true, reason: "Entry-level title, kept per profile" };
+    return {
+      isTarget: false,
+      reason: "Entry-level title below target seniority band",
+    };
   }
 
   const model = await resolveLlmModel("scoring");

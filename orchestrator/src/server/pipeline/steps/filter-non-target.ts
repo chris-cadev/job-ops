@@ -20,10 +20,11 @@ export type TargetFilterResult = {
 /**
  * Filtra ofertas `discovered` contra el markdown de target profile.
  * El subconjunto lo define solo el status (`discovered`), sin importar si
- * ya tienen suitabilityScore. Los jobs se clasifican por lotes en una sola
- * llamada LLM; si un lote falla se reintenta job por job. Idempotente por
- * estado (`skipped` no re-entra). Fecha/conteo persistidos en la base
- * central (`settings.targetFilterState`, scoped por tenant).
+ * ya tienen suitabilityScore. Títulos entry-level se marcan `skipped`
+ * directo (banda de seniority, sin LLM). El resto se clasifica por lotes
+ * en una sola llamada LLM; si un lote falla se reintenta job por job.
+ * Idempotente por estado (`skipped` no re-entra). Fecha/conteo persistidos
+ * en la base central (`settings.targetFilterState`, scoped por tenant).
  */
 export async function filterNonTargetStep(
   args: { pipelineRunId?: string; shouldCancel?: () => boolean } = {},
@@ -33,14 +34,34 @@ export async function filterNonTargetStep(
   logger.info("Running target filter step", { source });
 
   const jobs = await jobsRepo.getDiscoveredJobs();
-  // Entry-level titles and applied jobs never reach the LLM.
-  const candidates = jobs.filter(
-    (job) => job.status !== "applied" && !isEntryLevelTitle(job.title),
-  );
+  // Applied jobs never reach the LLM. Entry-level titles are off-target per
+  // the profile's seniority band: mark them skipped directly, no LLM call.
+  const candidates = jobs.filter((job) => job.status !== "applied");
   let skipped = 0;
 
+  for (const job of candidates) {
+    if (args.shouldCancel?.()) break;
+    if (!isEntryLevelTitle(job.title)) continue;
+    await jobsRepo.updateJob(job.id, {
+      status: "skipped",
+      suitabilityReason:
+        "off-target: entry-level title below target seniority band".slice(
+          0,
+          2000,
+        ),
+    });
+    skipped += 1;
+    logger.info("Target filter skipped entry-level job", {
+      jobId: job.id,
+      title: job.title,
+    });
+  }
+  const classifiable = candidates.filter(
+    (job) => !isEntryLevelTitle(job.title),
+  );
+
   // Sequential chunks: local LLM models share a single KV cache.
-  for (const chunk of chunkJobsByBudget(candidates)) {
+  for (const chunk of chunkJobsByBudget(classifiable)) {
     if (args.shouldCancel?.()) break;
     const verdicts = await classifyChunk(chunk, profileMd, args.shouldCancel);
     if (args.shouldCancel?.()) break;
