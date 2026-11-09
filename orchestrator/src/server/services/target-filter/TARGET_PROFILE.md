@@ -1,36 +1,37 @@
 # Target Profile — qué ofertas SÍ son mi target
 
-Soy desarrollador de software. Solo quiero ofertas alineadas a desarrollo de software.
+Soy desarrollador de software (stack: React, React Native, Node.js, NestJS,
+Express). Solo quiero ofertas alineadas a ese stack, en nivel middle /
+semi-senior, 100% remotas.
 
 ## Sí es mi target
 
-- Software Engineer / Developer (frontend, backend, fullstack, mobile, web)
-- DevOps / SRE / Platform orientado a software
-- Engineering Manager con background de software (solo si el rol es de software)
-- Trabajos en Tijuana, Rosarito o Ensenada
-- Trabajo 100% remoto para empresas de cualquier ubicación (trabajando desde Baja California).
-  Remoto NUNCA es motivo de descarte por sí solo: un rol de software remoto
-  siempre es target aunque la empresa esté en otra ciudad o país.
+- Software Engineer / Developer en React, React Native, Node.js, NestJS o
+  Express (frontend, backend, fullstack, mobile, web)
+- Nivel middle / mid-level / mid / semi-senior, o Senior hands-on sin
+  responsabilidades de liderazgo (Senior Engineer que programa a diario)
+- Trabajo 100% remoto para empresas de cualquier ubicación (trabajando desde
+  Baja California). Remoto NUNCA es motivo de descarte por sí solo.
+- Referencia de ciudades: Tijuana, Rosarito, Ensenada, Mexicali, Tecate,
+  La Paz. Solo relevante para búsquedas; cualquier rol presencial o híbrido
+  es off-target aunque esté en esas ciudades (ver abajo).
 
 ## No es mi target (marcar como off-target)
 
-- QA / QC / Quality Assurance / Tester / Test Engineer
-- Data Science / Data Analyst / Data Engineer / ML / AI Research.
-  También fuera: AI Engineer / ML Engineer (incl. RAG, LLMs aplicados,
-  AI Security). Todo rol centrado en AI/ML/Data es off-target sin excepción.
-- Hardware / Embedded / Firmware / Electrical / Mechanical
-- Soporte IT / Helpdesk / Sysadmin puro / Redes puras
-- Ciberseguridad / GRC / Auditoría IT / Compliance (Security Analyst, SOC, etc.)
-- Ventas / Marketing / Diseño puro / Producto sin código
-- Project / Program / Delivery Manager (aunque sea "de software": no programan)
-- Analistas funcionales sin programar (CRM/ERP config, Salesforce admin,
-  Business Analyst, Application Analyst de soporte)
-- Docencia / Faculty / Capacitación (aunque sea de ingeniería o sistemas)
-- Trabajo presencial o híbrido FUERA de Tijuana, Rosarito o Ensenada.
-  (Presencial/híbrido DENTRO de esas ciudades sí es target.)
-
-## Excepción entry-level
-
-Si el título contiene `junior`, `entry`, `entry-level`, `graduate`, `intern`,
-`trainee` o `jr`, **SÍ es mi target** aunque la categoría esté excluida arriba.
-(Ej.: "Junior QA Engineer" pasa el filtro; "Senior QA Engineer" no pasa.)
+- Cualquier rol presencial o híbrido (on-site), SIN EXCEPCIÓN de ciudad:
+  remoto es requisito. Un rol perfecto en Tijuana presencial sigue siendo
+  off-target.
+- Junior / Entry-level / Entry / Intern / Internship / Trainee / Graduate /
+  Jr: fuera, sin excepción. (Cambio deliberado: antes pasaban el filtro.)
+- Tech Lead / Team Lead / Staff / Principal / Architect con liderazgo /
+  Engineering Manager / Project / Program / Delivery Manager (aunque sean
+  "de software": no es el nivel buscado).
+- Roles fuera del stack aunque mencionen las keywords: QA / QC / Quality
+  Assurance / Tester / Test Engineer; Data Science / Data Analyst /
+  Data Engineer / ML / AI Research / AI Engineer / ML Engineer (incl. RAG,
+  LLMs aplicados, AI Security); Hardware / Embedded / Firmware / Electrical /
+  Mechanical; Soporte IT / Helpdesk / Sysadmin puro / Redes puras;
+  Ciberseguridad / GRC / Auditoría IT / Compliance; Ventas / Marketing /
+  Diseño puro / Producto sin código; Analistas funcionales sin programar
+  (CRM/ERP config, Salesforce admin, Business Analyst); Docencia / Faculty /
+  Capacitación.
